@@ -1,4 +1,4 @@
-# agent-notify Design Spec
+# ai-agent-notifier Design Spec
 
 > Cross-platform notifications for AI coding agents.
 > One tool, one config, every agent.
@@ -9,7 +9,7 @@ AI CLI agents (Claude Code, Codex, Gemini CLI, Cursor) run long tasks where the 
 
 ## Solution
 
-`agent-notify` is an npm package that provides:
+`ai-agent-notifier` is an npm package that provides:
 - **Platform-native toast notifications** (Windows BurntToast, macOS Notification Center, Linux libnotify)
 - **Phone push notifications** via ntfy (or any webhook)
 - **One unified config** shared across all four AI tools
@@ -31,7 +31,7 @@ All four tools send JSON on stdin to hook commands with at minimum `session_id`,
 ### Repository Structure
 
 ```
-agent-notify/
+ai-agent-notifier/
 ├── src/
 │   ├── notify.mjs               # Entry point — reads stdin, dispatches
 │   ├── parse-input.mjs          # Normalizes stdin JSON across all 4 tools
@@ -64,8 +64,8 @@ agent-notify/
 ├── hooks/
 │   └── hooks.json               # Claude Code plugin hook definitions
 ├── commands/
-│   ├── setup.md                 # /agent-notify:setup slash command
-│   └── test.md                  # /agent-notify:test slash command
+│   ├── setup.md                 # /ai-agent-notifier:setup slash command
+│   └── test.md                  # /ai-agent-notifier:test slash command
 ├── config/
 │   └── default-config.json      # Default notification preferences
 ├── package.json
@@ -125,20 +125,20 @@ AI Tool Hook Event
 Each tool's hook command includes a `--source` flag:
 
 ```
-node ~/.agent-notify/src/notify.mjs --source claude
-node ~/.agent-notify/src/notify.mjs --source codex
-node ~/.agent-notify/src/notify.mjs --source cursor
-node ~/.agent-notify/src/notify.mjs --source gemini
+node ~/.ai-agent-notifier/src/notify.mjs --source claude
+node ~/.ai-agent-notifier/src/notify.mjs --source codex
+node ~/.ai-agent-notifier/src/notify.mjs --source cursor
+node ~/.ai-agent-notifier/src/notify.mjs --source gemini
 ```
 
-When installed via npm global, the hook commands resolve `notify.mjs` from the npm package path (e.g. `node /usr/lib/node_modules/agent-notify/src/notify.mjs`). When installed standalone, commands use `~/.agent-notify/src/notify.mjs`. The `patch-config.mjs` module detects which install method was used and writes the correct path into each tool's hooks.
+When installed via npm global, the hook commands resolve `notify.mjs` from the npm package path (e.g. `node /usr/lib/node_modules/ai-agent-notifier/src/notify.mjs`). When installed standalone, commands use `~/.ai-agent-notifier/src/notify.mjs`. The `patch-config.mjs` module detects which install method was used and writes the correct path into each tool's hooks.
 
 ## Notification Backends
 
 ### Windows (BurntToast)
 
 - `toast.ps1` renders rich Windows toast via BurntToast PowerShell module
-- Custom icon (claude-logo.png or agent-notify icon)
+- Custom icon (claude-logo.png or ai-agent-notifier icon)
 - Sound selection per event type
 - Click-to-focus via `agentfocus://` custom URI protocol:
   - `focus.vbs` launches `focus-window.ps1` in a zero-window shell
@@ -170,14 +170,14 @@ When installed via npm global, the hook commands resolve `notify.mjs` from the n
 
 ## Configuration
 
-Location: `~/.agent-notify/config.json`
+Location: `~/.ai-agent-notifier/config.json`
 
 ```json
 {
   "ntfy": {
     "enabled": true,
     "server": "https://ntfy.sh",
-    "topic": "agent-notify-<random-16-chars>",
+    "topic": "ai-agent-notifier-<random-16-chars>",
     "icon": "https://claude.ai/images/claude_app_icon.png",
     "click": "https://claude.ai/"
   },
@@ -213,7 +213,7 @@ Location: `~/.agent-notify/config.json`
 ## CLI Interface
 
 ```
-agent-notify <command> [options]
+ai-agent-notifier <command> [options]
 
 Commands:
   setup                 First-time setup wizard
@@ -231,20 +231,20 @@ Commands:
 
 **Primary (npm):**
 ```bash
-npx agent-notify setup        # one-shot, no global install
+npx ai-agent-notifier setup        # one-shot, no global install
 # or
-npm i -g agent-notify          # global install
-agent-notify setup
+npm i -g ai-agent-notifier          # global install
+ai-agent-notifier setup
 ```
 
 **Fallback (standalone scripts):**
 ```powershell
 # Windows
-irm https://raw.githubusercontent.com/DevinoSolutions/agent-notify/main/setup/install.ps1 | iex
+irm https://raw.githubusercontent.com/DevinoSolutions/ai-agent-notifier/main/setup/install.ps1 | iex
 ```
 ```bash
 # macOS/Linux
-curl -fsSL https://raw.githubusercontent.com/DevinoSolutions/agent-notify/main/setup/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/DevinoSolutions/ai-agent-notifier/main/setup/install.sh | bash
 ```
 
 ### Setup Wizard Flow
@@ -256,7 +256,7 @@ curl -fsSL https://raw.githubusercontent.com/DevinoSolutions/agent-notify/main/s
 5. Prompt for ntfy configuration (enable/disable, server, topic)
 6. Generate or migrate ntfy topic
 7. Patch each detected tool's config with notification hooks
-8. Back up original configs to `~/.agent-notify/backups/`
+8. Back up original configs to `~/.ai-agent-notifier/backups/`
 9. Show QR code for ntfy phone subscription
 10. Print summary
 
@@ -274,7 +274,7 @@ curl -fsSL https://raw.githubusercontent.com/DevinoSolutions/agent-notify/main/s
 | Claude Code | `settings.json` (JSON) | Merge into `hooks.Notification` and `hooks.Stop` arrays |
 | Codex | `hooks.json` (JSON) + `config.toml` (TOML) | Create/merge hooks.json, append `codex_hooks = true` to config.toml |
 | Gemini | `hooks.json` (JSON) | Create/merge hooks following Gemini extension format |
-| Cursor | `hooks.json` (JSON) | Merge with `_managed_by: "agent-notify"` tag |
+| Cursor | `hooks.json` (JSON) | Merge with `_managed_by: "ai-agent-notifier"` tag |
 
 ## Claude Code Plugin
 
@@ -283,11 +283,11 @@ Thin convenience layer for Claude Code users who prefer plugin install.
 **plugin.json:**
 ```json
 {
-  "name": "agent-notify",
+  "name": "ai-agent-notifier",
   "version": "1.0.0",
   "description": "Cross-platform notifications for AI coding agents",
   "author": { "name": "DevinoSolutions" },
-  "repository": "https://github.com/DevinoSolutions/agent-notify",
+  "repository": "https://github.com/DevinoSolutions/ai-agent-notifier",
   "commands": ["./commands/setup.md", "./commands/test.md"]
 }
 ```
@@ -315,7 +315,7 @@ Thin convenience layer for Claude Code users who prefer plugin install.
 }
 ```
 
-When installed as a plugin, Claude Code hooks are auto-registered. The `/agent-notify:setup` slash command additionally wires Codex/Gemini/Cursor if detected.
+When installed as a plugin, Claude Code hooks are auto-registered. The `/ai-agent-notifier:setup` slash command additionally wires Codex/Gemini/Cursor if detected.
 
 ## Dependencies
 
