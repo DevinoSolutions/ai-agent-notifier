@@ -1,0 +1,4 @@
+node_modules/
+assets/icon.png
+*.backup
+.ai-agent-notifier-backup

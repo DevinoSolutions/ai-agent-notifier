@@ -1,0 +1,38 @@
+{
+  "ntfy": {
+    "enabled": true,
+    "server": "https://ntfy.sh",
+    "topic": "",
+    "icon": "https://claude.ai/images/claude_app_icon.png",
+    "click": "https://claude.ai/"
+  },
+  "toast": {
+    "enabled": true,
+    "clickToFocus": true
+  },
+  "events": {
+    "task_complete": {
+      "sound": "IM",
+      "ntfyPriority": "default",
+      "ntfyTags": "white_check_mark"
+    },
+    "needs_input": {
+      "sound": "Reminder",
+      "ntfyPriority": "urgent",
+      "ntfyTags": "bell,warning"
+    },
+    "session_start": {
+      "sound": "Default",
+      "ntfyPriority": "low",
+      "ntfyTags": "rocket",
+      "toastEnabled": false,
+      "ntfyEnabled": false
+    }
+  },
+  "sources": {
+    "claude": { "label": "Claude Code" },
+    "codex": { "label": "Codex" },
+    "gemini": { "label": "Gemini" },
+    "cursor": { "label": "Cursor" }
+  }
+}

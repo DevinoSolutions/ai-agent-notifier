@@ -1,0 +1,46 @@
+{
+  "name": "ai-agent-notifier",
+  "version": "1.0.0",
+  "description": "Cross-platform notifications for AI coding agents (Claude Code, Codex, Gemini CLI, Cursor)",
+  "type": "module",
+  "bin": {
+    "ai-agent-notifier": "./cli/index.mjs"
+  },
+  "main": "./src/notify.mjs",
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "keywords": [
+    "notifications",
+    "claude",
+    "codex",
+    "gemini",
+    "cursor",
+    "ai-agent",
+    "toast",
+    "ntfy",
+    "hooks"
+  ],
+  "author": {
+    "name": "DevinoSolutions",
+    "url": "https://github.com/DevinoSolutions"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DevinoSolutions/ai-agent-notifier"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "src/",
+    "cli/",
+    "setup/",
+    "assets/",
+    "config/",
+    "hooks/",
+    "commands/",
+    ".claude-plugin/"
+  ]
+}
