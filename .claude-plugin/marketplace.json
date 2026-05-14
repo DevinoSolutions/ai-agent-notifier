@@ -1,0 +1,23 @@
+{
+  "name": "ai-agent-notifier",
+  "owner": {
+    "name": "DevinoSolutions",
+    "url": "https://github.com/DevinoSolutions"
+  },
+  "metadata": {
+    "description": "Cross-platform notifications for AI coding agents",
+    "version": "1.0.0"
+  },
+  "plugins": [{
+    "name": "ai-agent-notifier",
+    "source": "./",
+    "description": "Cross-platform notifications for AI coding agents (Claude Code, Codex, Gemini, Cursor)",
+    "version": "1.0.0",
+    "author": { "name": "DevinoSolutions" },
+    "repository": "https://github.com/DevinoSolutions/ai-agent-notifier",
+    "license": "MIT",
+    "keywords": ["notifications", "toast", "ntfy", "hooks"],
+    "category": "productivity",
+    "tags": ["notifications", "hooks", "alerts"]
+  }]
+}
