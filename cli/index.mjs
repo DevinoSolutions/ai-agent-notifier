@@ -41,21 +41,29 @@ export function checkForUpdate() {
   });
 }
 
+async function printUpdateBanner(c, updatePromise) {
+  const latest = await updatePromise;
+  if (latest) {
+    console.log(`  ${c.warn('\u2191')} ${c.warn(`Update available: v${pkg.version} \u2192 v${latest}`)}`);
+    console.log(`    ${c.muted('npm i -g ai-agent-notifier@latest')}\n`);
+  }
+}
+
 async function main() {
   const { c, banner, gradient } = await import('./ui.mjs');
 
+  // Start update check early — runs in parallel with the command
+  const updatePromise = checkForUpdate();
+
   if (command === '--version' || command === '-v' || command === '-V') {
     console.log(`${c.bold('ai-agent-notifier')} ${c.accent(`v${pkg.version}`)}`);
-    const latest = await checkForUpdate();
-    if (latest) {
-      console.log(`\n  ${c.warn('\u2191')} ${c.warn(`Update available: v${pkg.version} \u2192 v${latest}`)}`);
-      console.log(`    ${c.muted('npm i -g ai-agent-notifier@latest')}`);
-    }
+    await printUpdateBanner(c, updatePromise);
     process.exit(0);
   }
 
   if (!command || command === '--help' || command === '-h') {
     printHelp(c, banner, gradient);
+    await printUpdateBanner(c, updatePromise);
     process.exit(0);
   }
 
@@ -67,6 +75,11 @@ async function main() {
 
   const mod = await loader();
   await mod.run(subcommand);
+
+  // Show update banner after command output (status handles its own)
+  if (command !== 'status') {
+    await printUpdateBanner(c, updatePromise);
+  }
 }
 
 function printHelp(c, banner, gradient) {
