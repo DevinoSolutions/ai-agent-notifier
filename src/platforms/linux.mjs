@@ -13,7 +13,12 @@ const URGENCY_MAP = {
 
 export function sendToast(notification) {
   return new Promise((resolve) => {
-    const iconPath = path.join(getConfigDir(), 'icon.png');
+    // Per-source icon: assets/icons/<source>.png, fallback to legacy icon.png
+    const iconsDir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'assets', 'icons');
+    let iconPath = notification.source ? path.join(iconsDir, `${notification.source}.png`) : '';
+    if (!iconPath || !fs.existsSync(iconPath)) {
+      iconPath = path.join(getConfigDir(), 'icon.png');
+    }
     const args = [
       notification.title,
       notification.message,

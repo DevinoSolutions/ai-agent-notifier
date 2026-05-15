@@ -4,13 +4,26 @@ param(
   [string]$Sound = 'Default',
   [string]$ProjectName = '',
   [string]$Cwd = '',
-  [string]$Hwnd = '0'
+  [string]$Hwnd = '0',
+  [string]$Source = ''
 )
-$logo = Join-Path $PSScriptRoot '..\..\assets\icon.png'
-# Fallback if icon.png not at expected location
-if (-not (Test-Path $logo)) {
-  $agentDir = Join-Path $env:USERPROFILE '.ai-agent-notifier'
-  $logo = Join-Path $agentDir 'icon.png'
+# Per-source icon: assets/icons/<source>.png
+$iconsDir = Join-Path $PSScriptRoot '..\icons'
+$logo = ''
+if ($Source -and (Test-Path (Join-Path $iconsDir "$Source.png"))) {
+  $logo = Join-Path $iconsDir "$Source.png"
+} elseif (Test-Path (Join-Path $iconsDir 'claude.png')) {
+  $logo = Join-Path $iconsDir 'claude.png'
+}
+# Fallback to legacy icon.png locations
+if (-not $logo -or -not (Test-Path $logo)) {
+  $legacy = Join-Path $PSScriptRoot '..\..\assets\icon.png'
+  if (Test-Path $legacy) { $logo = $legacy }
+  else {
+    $agentDir = Join-Path $env:USERPROFILE '.ai-agent-notifier'
+    $legacy2 = Join-Path $agentDir 'icon.png'
+    if (Test-Path $legacy2) { $logo = $legacy2 }
+  }
 }
 $launchUri = $null
 
