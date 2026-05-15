@@ -42,24 +42,26 @@ export function checkForUpdate() {
 }
 
 async function main() {
+  const { c, banner, gradient } = await import('./ui.mjs');
+
   if (command === '--version' || command === '-v' || command === '-V') {
-    console.log(`ai-agent-notifier v${pkg.version}`);
+    console.log(`${c.bold('ai-agent-notifier')} ${c.accent(`v${pkg.version}`)}`);
     const latest = await checkForUpdate();
     if (latest) {
-      console.log(`\n  Update available: v${pkg.version} → v${latest}`);
-      console.log(`  Run: npm i -g ai-agent-notifier@latest`);
+      console.log(`\n  ${c.warn('\u2191')} ${c.warn(`Update available: v${pkg.version} \u2192 v${latest}`)}`);
+      console.log(`    ${c.muted('npm i -g ai-agent-notifier@latest')}`);
     }
     process.exit(0);
   }
 
   if (!command || command === '--help' || command === '-h') {
-    printHelp();
+    printHelp(c, banner, gradient);
     process.exit(0);
   }
 
   const loader = COMMANDS[command];
   if (!loader) {
-    console.error(`Unknown command: ${command}\nRun "ai-agent-notifier --help" for usage.`);
+    console.error(`${c.error('Error:')} Unknown command "${command}"\n  Run ${c.muted('ai-agent-notifier --help')} for usage.`);
     process.exit(1);
   }
 
@@ -67,25 +69,26 @@ async function main() {
   await mod.run(subcommand);
 }
 
-function printHelp() {
-  console.log(`
-  ai-agent-notifier — cross-platform notifications for AI coding agents
-
-  Usage: ai-agent-notifier <command> [options]
-
-  Commands:
-    setup             First-time setup wizard
-    status            Show wired tools, ntfy topic, toast backend
-    test [channel]    Fire test notification (toast | ntfy | both)
-    config [section]  Interactive settings (ntfy | sounds | tools | events)
-    uninstall         Remove hooks from all tools
-    --version, -v     Show version and check for updates
-
-  Examples:
-    npx ai-agent-notifier setup
-    ai-agent-notifier test toast
-    ai-agent-notifier config ntfy
-  `);
+function printHelp(c, banner, gradient) {
+  console.log();
+  console.log(banner());
+  console.log(`  ${c.muted('Cross-platform notifications for AI coding agents')}`);
+  console.log();
+  console.log(`  ${c.bold('Usage:')} ${c.white('ai-agent-notifier')} ${c.accent('<command>')} ${c.muted('[options]')}`);
+  console.log();
+  console.log(`  ${c.bold('Commands:')}`);
+  console.log(`    ${c.accent('setup')}             ${c.white('First-time setup wizard')}`);
+  console.log(`    ${c.accent('status')}            ${c.white('Show wired tools, ntfy topic, toast backend')}`);
+  console.log(`    ${c.accent('test')} ${c.muted('[channel]')}    ${c.white('Fire test notification')} ${c.muted('(toast | ntfy | both)')}`);
+  console.log(`    ${c.accent('config')} ${c.muted('[section]')}  ${c.white('Interactive settings')} ${c.muted('(ntfy | sounds | tools | events)')}`);
+  console.log(`    ${c.accent('uninstall')}         ${c.white('Remove hooks from all tools')}`);
+  console.log(`    ${c.muted('--version, -v')}     ${c.white('Show version and check for updates')}`);
+  console.log();
+  console.log(`  ${c.bold('Examples:')}`);
+  console.log(`    ${c.muted('$')} ${c.white('npx ai-agent-notifier setup')}`);
+  console.log(`    ${c.muted('$')} ${c.white('ai-agent-notifier test toast')}`);
+  console.log(`    ${c.muted('$')} ${c.white('ai-agent-notifier config ntfy')}`);
+  console.log();
 }
 
 main().catch((err) => {

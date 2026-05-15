@@ -2,11 +2,7 @@
 import os from 'node:os';
 import { loadConfig } from '../src/config-loader.mjs';
 import { sendNtfy } from '../src/ntfy.mjs';
-
-function log(msg, color = '') {
-  const colors = { green: '\x1b[32m', cyan: '\x1b[36m', yellow: '\x1b[33m', red: '\x1b[31m', reset: '\x1b[0m', bold: '\x1b[1m' };
-  console.log(`${colors[color] || ''}${msg}${colors.reset}`);
-}
+import { c, spinner, banner } from './ui.mjs';
 
 async function getToastBackend() {
   const platform = os.platform();
@@ -26,25 +22,35 @@ export async function run(channel) {
     projectName: 'test',
   };
 
-  log('\n  ai-agent-notifier test\n', 'bold');
+  console.log();
+  console.log(`  ${c.bold('ai-agent-notifier')} ${c.accent('test')}`);
+  console.log();
 
   const doToast = !channel || channel === 'toast' || channel === 'both';
   const doNtfy = !channel || channel === 'ntfy' || channel === 'both';
 
   if (doToast) {
-    log('  Sending test toast...', 'cyan');
+    const spin = spinner('Sending toast notification...');
     const sendToast = await getToastBackend();
     const ok = await sendToast(testNotif);
-    log(ok ? '    \u2713 Toast sent' : '    \u2717 Toast failed', ok ? 'green' : 'red');
+    if (ok) {
+      spin.stop('Toast sent');
+    } else {
+      spin.fail('Toast failed');
+    }
   }
 
   if (doNtfy && config.ntfy?.enabled && config.ntfy?.topic) {
-    log('  Sending test ntfy push...', 'cyan');
+    const spin = spinner('Sending ntfy push...');
     const ok = await sendNtfy(config.ntfy, testNotif);
-    log(ok ? '    \u2713 ntfy sent' : '    \u2717 ntfy failed', ok ? 'green' : 'red');
-  } else if (doNtfy) {
-    log('  ntfy not configured \u2014 run "ai-agent-notifier setup" first', 'yellow');
+    if (ok) {
+      spin.stop('ntfy sent');
+    } else {
+      spin.fail('ntfy failed');
+    }
+  } else if (doNtfy && (!config.ntfy?.enabled || !config.ntfy?.topic)) {
+    console.log(`  ${c.warn('\u26a0')} ${c.muted('ntfy not configured \u2014 run')} ${c.white('ai-agent-notifier setup')} ${c.muted('first')}`);
   }
 
-  log('');
+  console.log();
 }

@@ -3,16 +3,12 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { loadConfig, getConfigDir } from '../src/config-loader.mjs';
+import { loadConfig } from '../src/config-loader.mjs';
 import { checkForUpdate } from './index.mjs';
+import { c, box, kv, sectionHeader, table } from './ui.mjs';
 
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
-
-function log(msg, color = '') {
-  const colors = { green: '\x1b[32m', cyan: '\x1b[36m', yellow: '\x1b[33m', red: '\x1b[31m', dim: '\x1b[2m', reset: '\x1b[0m', bold: '\x1b[1m' };
-  console.log(`${colors[color] || ''}${msg}${colors.reset}`);
-}
 
 function checkTool(name, label, configFile) {
   const filePath = path.join(os.homedir(), name, configFile);
@@ -34,18 +30,13 @@ export async function run() {
   const platform = os.platform();
   const platLabel = platform === 'win32' ? 'Windows' : platform === 'darwin' ? 'macOS' : 'Linux';
   const toastLabel = platform === 'win32' ? 'BurntToast' : platform === 'darwin' ? 'osascript' : 'notify-send';
+  const toastExtra = config.toast?.clickToFocus ? c.muted(' (click-to-focus)') : '';
 
-  log(`\n  ai-agent-notifier v${pkg.version}\n`, 'bold');
-  log(`  Platform:    ${platLabel}`);
-  log(`  Toast:       ${toastLabel}${config.toast?.clickToFocus ? ' (click-to-focus enabled)' : ''}`);
+  const ntfyValue = config.ntfy?.enabled && config.ntfy?.topic
+    ? c.success(`${config.ntfy.server}/${config.ntfy.topic}`)
+    : c.muted('disabled');
 
-  if (config.ntfy?.enabled && config.ntfy?.topic) {
-    log(`  ntfy:        ${config.ntfy.server}/${config.ntfy.topic}`);
-  } else {
-    log('  ntfy:        disabled', 'dim');
-  }
-
-  log('\n  Tools:', 'cyan');
+  // Tools
   const tools = [
     checkTool('.claude', 'Claude Code', 'settings.json'),
     checkTool('.codex', 'Codex CLI', 'hooks.json'),
@@ -53,26 +44,49 @@ export async function run() {
     checkTool('.gemini', 'Gemini CLI', 'hooks.json'),
   ];
 
-  for (const t of tools) {
-    const icon = t.status === 'wired' ? '\u2713' : '\u2717';
-    const color = t.status === 'wired' ? 'green' : 'dim';
-    const events = t.events.length > 0 ? ` (${t.events.join(', ')})` : ` (${t.status})`;
-    log(`    ${icon} ${t.label}${events}`, color);
-  }
+  const toolLines = tools.map(t => {
+    const icon = t.status === 'wired' ? c.success('\u2713') : c.muted('\u2717');
+    const name = t.status === 'wired' ? c.white(t.label) : c.muted(t.label);
+    const events = t.status === 'wired'
+      ? c.muted(` ${t.events.join(', ')}`)
+      : c.muted(` ${t.status}`);
+    return `${icon} ${name}${events}`;
+  });
 
-  log('\n  Events:', 'cyan');
-  for (const [event, conf] of Object.entries(config.events || {})) {
-    const toast = conf.toastEnabled !== false ? '\u2713' : '\u2717';
-    const ntfy = conf.ntfyEnabled !== false && config.ntfy?.enabled ? '\u2713' : '\u2717';
-    log(`    ${event.padEnd(18)} toast ${toast}  ntfy ${ntfy}  sound: ${conf.sound || 'Default'}`);
-  }
+  // Events
+  const eventLines = Object.entries(config.events || {}).map(([event, conf]) => {
+    const toastIcon = conf.toastEnabled !== false ? c.success('\u2713') : c.muted('\u2717');
+    const ntfyIcon = conf.ntfyEnabled !== false && config.ntfy?.enabled ? c.success('\u2713') : c.muted('\u2717');
+    const name = c.white(event.padEnd(16));
+    const sound = c.muted(conf.sound || 'Default');
+    return `${name} toast ${toastIcon}  ntfy ${ntfyIcon}  ${sound}`;
+  });
+
+  // Build box content
+  const lines = [
+    c.bold(`ai-agent-notifier ${c.accent(`v${pkg.version}`)}`),
+    '',
+    kv('Platform', platLabel),
+    kv('Toast', `${toastLabel}${toastExtra}`),
+    kv('ntfy', ''),
+    `${''.padEnd(15)} ${ntfyValue}`,
+    '---',
+    sectionHeader('Tools'),
+    ...toolLines,
+    '---',
+    sectionHeader('Events'),
+    ...eventLines,
+  ];
+
+  console.log();
+  console.log(box(lines, { padding: 2, width: 52 }));
 
   // Non-blocking update check
   const latest = await checkForUpdate();
   if (latest) {
-    log(`  Update available: v${pkg.version} \u2192 v${latest}`, 'yellow');
-    log('  Run: npm i -g ai-agent-notifier@latest\n', 'yellow');
-  } else {
-    log('');
+    console.log();
+    console.log(`  ${c.warn('\u2191')} ${c.warn(`Update available: v${pkg.version} \u2192 v${latest}`)}`);
+    console.log(`    ${c.muted('npm i -g ai-agent-notifier@latest')}`);
   }
+  console.log();
 }
