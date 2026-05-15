@@ -1,12 +1,15 @@
-<p align="center">
-  <img src="assets/icons/claude.png" alt="ai-agent-notifier" width="80" />
-</p>
-
 <h1 align="center">ai-agent-notifier</h1>
 
 <p align="center">
   <strong>Desktop & phone notifications for AI coding agents</strong><br />
   One tool. One config. Every agent. Never miss when your AI finishes or needs input.
+</p>
+
+<p align="center">
+  <img src="assets/icons/claude.png" alt="Claude Code" width="36" />&nbsp;&nbsp;
+  <img src="assets/icons/codex.png" alt="Codex CLI" width="36" />&nbsp;&nbsp;
+  <img src="assets/icons/cursor.png" alt="Cursor" width="36" />&nbsp;&nbsp;
+  <img src="assets/icons/gemini.png" alt="Gemini CLI" width="36" />
 </p>
 
 <p align="center">
@@ -20,24 +23,13 @@
 
 ---
 
-## Why ai-agent-notifier?
+## Quick Start
 
-AI coding agents run for minutes at a time. You tab away, check Slack, grab coffee -- then forget to come back. **ai-agent-notifier** sends you a desktop toast and/or phone push notification the moment your agent finishes a task or needs your input. Works with every major AI coding tool, on every platform, with zero npm dependencies.
+```bash
+npx ai-agent-notifier setup
+```
 
-## Supported AI Coding Tools
-
-| Tool | VS Code | CLI | Task Complete | Needs Input |
-|------|:-------:|:---:|--------------|-------------|
-| **Claude Code** | Native | Native | `Stop` | `Notification` |
-| **Codex CLI** | Native | Native | `Stop` | `PermissionRequest` |
-| **Cursor** | Native | -- | `stop` | -- |
-| **Gemini CLI** | -- | Native | `AfterAgent` | `Notification` |
-
-All four tools are wired automatically by the setup wizard. No manual config editing needed.
-
-### VS Code Native Support
-
-Claude Code, Codex, and Cursor all run inside VS Code. **ai-agent-notifier** hooks directly into each tool's native hook system -- no VS Code extension required. The setup wizard detects installed tools and patches their configs automatically. Click a notification toast to jump straight back to your VS Code window.
+That's it. The setup wizard detects your platform and installed AI tools, wires the hooks, and optionally configures phone push notifications. Restart your AI tools to activate.
 
 ## Features
 
@@ -45,22 +37,55 @@ Claude Code, Codex, and Cursor all run inside VS Code. **ai-agent-notifier** hoo
 - **Phone push notifications** -- via [ntfy](https://ntfy.sh) (free, no account required)
 - **Click-to-focus** -- click the toast to jump back to the terminal or VS Code window (Windows)
 - **Per-tool branded icons** -- each tool gets its own logo in the notification
-- **One unified config** -- shared `~/.ai-agent-notifier/config.json` for all tools
+- **One unified config** -- shared `~/.ai-agent-notifier/config.json` across all tools
 - **Atomic deduplication** -- prevents double notifications (e.g. Cursor's duplicate hook fires)
-- **Zero dependencies** -- pure Node.js built-ins only
+- **Zero dependencies** -- pure Node.js built-ins only, no npm production packages
 
-## Quick Start
+## Supported Tools
 
-```bash
-npx ai-agent-notifier setup
-```
+<table>
+  <tr>
+    <th>Tool</th>
+    <th>VS Code</th>
+    <th>CLI</th>
+    <th>Task Complete</th>
+    <th>Needs Input</th>
+  </tr>
+  <tr>
+    <td><img src="assets/icons/claude.png" width="18" />&nbsp; <strong>Claude Code</strong></td>
+    <td align="center">Native</td>
+    <td align="center">Native</td>
+    <td><code>Stop</code></td>
+    <td><code>Notification</code></td>
+  </tr>
+  <tr>
+    <td><img src="assets/icons/codex.png" width="18" />&nbsp; <strong>Codex CLI</strong></td>
+    <td align="center">Native</td>
+    <td align="center">Native</td>
+    <td><code>Stop</code></td>
+    <td><code>PermissionRequest</code></td>
+  </tr>
+  <tr>
+    <td><img src="assets/icons/cursor.png" width="18" />&nbsp; <strong>Cursor</strong></td>
+    <td align="center">Native</td>
+    <td align="center">--</td>
+    <td><code>stop</code></td>
+    <td>--</td>
+  </tr>
+  <tr>
+    <td><img src="assets/icons/gemini.png" width="18" />&nbsp; <strong>Gemini CLI</strong></td>
+    <td align="center">--</td>
+    <td align="center">Native</td>
+    <td><code>AfterAgent</code></td>
+    <td><code>Notification</code></td>
+  </tr>
+</table>
 
-The setup wizard will:
-1. Detect your platform and installed AI tools
-2. Install the toast backend (BurntToast on Windows)
-3. Configure ntfy push notifications (optional)
-4. Wire hooks into each detected tool's config
-5. Back up original configs before patching
+All four tools are wired automatically by the setup wizard. No manual config editing needed.
+
+### VS Code Native Support
+
+Claude Code, Codex, and Cursor all run inside VS Code. **ai-agent-notifier** hooks directly into each tool's native hook system -- no VS Code extension required. The setup wizard detects installed tools and patches their configs automatically. Click a notification toast to jump straight back to your VS Code window.
 
 ## Installation
 
@@ -105,27 +130,6 @@ ai-agent-notifier config         # Interactive settings menu
 ai-agent-notifier uninstall      # Remove hooks from all tools
 ```
 
-## How It Works
-
-Each AI tool's hook system pipes event data to `notify.mjs`:
-
-```
-Hook fires (stdin JSON + --source flag)
-  -> parse-input.mjs   (normalize across tools)
-  -> router.mjs        (map event to notification type)
-  -> platform toast    (Windows / macOS / Linux)
-  -> ntfy push         (phone notification)
-```
-
-The `--source` flag identifies which tool fired:
-
-```bash
-node notify.mjs --source claude   # Claude Code
-node notify.mjs --source codex    # Codex CLI
-node notify.mjs --source gemini   # Gemini CLI
-node notify.mjs --source cursor   # Cursor
-```
-
 ## Configuration
 
 Config lives at `~/.ai-agent-notifier/config.json`:
@@ -165,6 +169,18 @@ Config lives at `~/.ai-agent-notifier/config.json`:
 | `needs_input` | Reminder | urgent | Agent needs your input or permission |
 | `session_start` | Default | low | New session started (disabled by default) |
 
+## How It Works
+
+Each AI tool's hook system pipes event data to `notify.mjs`:
+
+```
+Hook fires (stdin JSON + --source flag)
+  -> parse-input.mjs   (normalize across tools)
+  -> router.mjs        (map event to notification type)
+  -> platform toast    (Windows / macOS / Linux)
+  -> ntfy push         (phone notification)
+```
+
 ## Platform Details
 
 ### Windows
@@ -192,10 +208,6 @@ Config lives at `~/.ai-agent-notifier/config.json`:
 | **Windows** | PowerShell 7+ (pwsh) |
 | **macOS** | osascript (built-in) |
 | **Linux** | notify-send (optional, for desktop toasts) |
-
-## Zero Dependencies
-
-Pure Node.js built-ins only -- no npm production dependencies. Uses `https`, `fs`, `path`, `child_process`, `readline`, and `os`.
 
 ## Uninstall
 
