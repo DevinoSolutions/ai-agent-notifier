@@ -72,15 +72,21 @@ export function patchCodex(codexDir, notifyPath, backupDir) {
 
   writeJSON(hooksPath, existing);
 
-  // Enable codex_hooks feature flag in config.toml
+  // Enable hooks feature flag in config.toml
+  // Note: codex_hooks is deprecated since v0.130+, use hooks instead
   const tomlPath = path.join(codexDir, 'config.toml');
   let toml = '';
   try { toml = fs.readFileSync(tomlPath, 'utf8'); } catch { /* new file */ }
-  if (!toml.includes('codex_hooks')) {
+  // Migrate deprecated codex_hooks to hooks
+  if (toml.includes('codex_hooks')) {
+    toml = toml.replace(/codex_hooks\s*=\s*true/, 'hooks = true');
+    fs.writeFileSync(tomlPath, toml, 'utf8');
+  }
+  if (!toml.includes('hooks = true')) {
     if (!toml.includes('[features]')) {
-      toml += '\n[features]\ncodex_hooks = true\n';
+      toml += '\n[features]\nhooks = true\n';
     } else {
-      toml = toml.replace('[features]', '[features]\ncodex_hooks = true');
+      toml = toml.replace('[features]', '[features]\nhooks = true');
     }
     fs.writeFileSync(tomlPath, toml, 'utf8');
   }
@@ -109,7 +115,7 @@ export function patchGemini(geminiDir, notifyPath, backupDir) {
   if (!settings.hooks) settings.hooks = {};
 
   // Gemini timeout is in milliseconds (default 60000)
-  const hook = makeHookEntry(notifyPath, 'gemini', { timeout: 10000 });
+  const hook = makeHookEntry(notifyPath, 'gemini', { timeout: 30000 });
 
   settings.hooks.AfterAgent = [...removeManagedHooks(settings.hooks.AfterAgent), hook];
   settings.hooks.Notification = [...removeManagedHooks(settings.hooks.Notification), hook];

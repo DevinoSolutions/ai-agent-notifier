@@ -75,7 +75,7 @@ describe('patch-config', () => {
     assert.ok(settings.hooks.Notification);
     assert.equal(settings.security !== undefined, true);
     // Timeout in milliseconds
-    assert.equal(settings.hooks.AfterAgent[0].hooks[0].timeout, 10000);
+    assert.equal(settings.hooks.AfterAgent[0].hooks[0].timeout, 30000);
   });
 
   it('is idempotent — does not duplicate hooks on re-run', async () => {
