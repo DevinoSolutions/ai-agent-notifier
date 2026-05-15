@@ -2,7 +2,12 @@
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { loadConfig, getConfigDir } from '../src/config-loader.mjs';
+import { checkForUpdate } from './index.mjs';
+
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json');
 
 function log(msg, color = '') {
   const colors = { green: '\x1b[32m', cyan: '\x1b[36m', yellow: '\x1b[33m', red: '\x1b[31m', dim: '\x1b[2m', reset: '\x1b[0m', bold: '\x1b[1m' };
@@ -30,7 +35,7 @@ export async function run() {
   const platLabel = platform === 'win32' ? 'Windows' : platform === 'darwin' ? 'macOS' : 'Linux';
   const toastLabel = platform === 'win32' ? 'BurntToast' : platform === 'darwin' ? 'osascript' : 'notify-send';
 
-  log('\n  ai-agent-notifier status\n', 'bold');
+  log(`\n  ai-agent-notifier v${pkg.version}\n`, 'bold');
   log(`  Platform:    ${platLabel}`);
   log(`  Toast:       ${toastLabel}${config.toast?.clickToFocus ? ' (click-to-focus enabled)' : ''}`);
 
@@ -62,5 +67,12 @@ export async function run() {
     log(`    ${event.padEnd(18)} toast ${toast}  ntfy ${ntfy}  sound: ${conf.sound || 'Default'}`);
   }
 
-  log('');
+  // Non-blocking update check
+  const latest = await checkForUpdate();
+  if (latest) {
+    log(`  Update available: v${pkg.version} \u2192 v${latest}`, 'yellow');
+    log('  Run: npm i -g ai-agent-notifier@latest\n', 'yellow');
+  } else {
+    log('');
+  }
 }
