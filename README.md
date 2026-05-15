@@ -18,7 +18,7 @@
   <a href="https://www.npmjs.com/package/ai-agent-notifier"><img src="https://img.shields.io/npm/dm/ai-agent-notifier?color=blue" alt="npm downloads" /></a>
   <a href="https://github.com/DevinoSolutions/ai-agent-notifier/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0" /></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node.js >= 18" /></a>
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform: Windows | macOS | Linux" />
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS-lightgrey" alt="Platform: Windows | macOS | Linux | Android | iOS" />
   <img src="https://img.shields.io/badge/dependencies-zero-success" alt="Zero Dependencies" />
 </p>
 
@@ -35,7 +35,7 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
 ## Features
 
 - **Desktop toast notifications** -- Windows (BurntToast), macOS (Notification Center), Linux (libnotify)
-- **Phone push notifications** -- via [ntfy](https://ntfy.sh) (free, no account required)
+- **Phone push notifications** -- Android & iOS via [ntfy](https://ntfy.sh) (free, no account required)
 - **Click-to-focus** -- click the toast to jump back to the terminal or VS Code window (Windows)
 - **Per-tool branded icons** -- each tool gets its own logo in the notification
 - **One unified config** -- shared `~/.ai-agent-notifier/config.json` across all tools
