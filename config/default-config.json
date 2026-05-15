@@ -3,7 +3,6 @@
     "enabled": true,
     "server": "https://ntfy.sh",
     "topic": "",
-    "icon": "https://claude.ai/images/claude_app_icon.png",
     "click": "https://claude.ai/"
   },
   "toast": {
@@ -30,9 +29,21 @@
     }
   },
   "sources": {
-    "claude": { "label": "Claude Code" },
-    "codex": { "label": "Codex" },
-    "gemini": { "label": "Gemini" },
-    "cursor": { "label": "Cursor" }
+    "claude": {
+      "label": "Claude Code",
+      "icon": "https://cdn.jsdelivr.net/gh/anthropics/anthropic-branding@main/icon/claude-app-icon.png"
+    },
+    "codex": {
+      "label": "Codex",
+      "icon": "https://cdn.openai.com/API/logo-assets/openai-logos/openai-white-logomark.png"
+    },
+    "gemini": {
+      "label": "Gemini",
+      "icon": "https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690b6.svg"
+    },
+    "cursor": {
+      "label": "Cursor",
+      "icon": "https://www.cursor.com/favicon.ico"
+    }
   }
 }

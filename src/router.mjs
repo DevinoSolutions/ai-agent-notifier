@@ -19,6 +19,7 @@ export function route(event, config) {
     sound: eventConfig.sound || 'Default',
     ntfyPriority: eventConfig.ntfyPriority || 'default',
     ntfyTags: eventConfig.ntfyTags || '',
+    icon: sourceConfig.icon || '',
     event: event.event,
     source: event.source,
     projectName: event.projectName,

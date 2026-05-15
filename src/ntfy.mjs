@@ -11,7 +11,8 @@ export function buildNtfyRequest(ntfyConfig, notification) {
   };
 
   if (notification.ntfyTags) headers.Tags = notification.ntfyTags;
-  if (ntfyConfig.icon) headers.Icon = ntfyConfig.icon;
+  if (notification.icon) headers.Icon = notification.icon;
+  else if (ntfyConfig.icon) headers.Icon = ntfyConfig.icon;
   if (ntfyConfig.click) headers.Click = ntfyConfig.click;
 
   return { url, headers, body: notification.message };

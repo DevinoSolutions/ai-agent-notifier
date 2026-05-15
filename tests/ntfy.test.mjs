@@ -20,18 +20,29 @@ describe('buildNtfyRequest', () => {
     assert.equal(req.url, 'https://ntfy.sh/test-topic-123');
   });
 
-  it('sets correct headers', () => {
+  it('sets correct headers with notification icon', () => {
     const req = buildNtfyRequest(ntfyConfig, {
       title: 'Codex',
       message: 'Needs input',
       ntfyPriority: 'urgent',
       ntfyTags: 'bell,warning',
+      icon: 'https://example.com/codex-icon.png',
     });
     assert.equal(req.headers.Title, 'Codex');
     assert.equal(req.headers.Priority, 'urgent');
     assert.equal(req.headers.Tags, 'bell,warning');
-    assert.equal(req.headers.Icon, 'https://example.com/icon.png');
+    assert.equal(req.headers.Icon, 'https://example.com/codex-icon.png');
     assert.equal(req.headers.Click, 'https://example.com');
+  });
+
+  it('falls back to ntfyConfig icon when notification has none', () => {
+    const req = buildNtfyRequest(ntfyConfig, {
+      title: 'Claude',
+      message: 'Done',
+      ntfyPriority: 'default',
+      ntfyTags: '',
+    });
+    assert.equal(req.headers.Icon, 'https://example.com/icon.png');
   });
 
   it('uses message as body', () => {
