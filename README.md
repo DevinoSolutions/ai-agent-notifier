@@ -18,8 +18,15 @@
   <a href="https://www.npmjs.com/package/ai-agent-notifier"><img src="https://img.shields.io/npm/dm/ai-agent-notifier?color=blue" alt="npm downloads" /></a>
   <a href="https://github.com/DevinoSolutions/ai-agent-notifier/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0" /></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node.js >= 18" /></a>
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android%20%7C%20iOS-lightgrey" alt="Platform: Windows | macOS | Linux | Android | iOS" />
   <img src="https://img.shields.io/badge/dependencies-zero-success" alt="Zero Dependencies" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Windows-0078D6?style=flat-square&logo=windows&logoColor=white" alt="Windows" />
+  <img src="https://img.shields.io/badge/macOS-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS" />
+  <img src="https://img.shields.io/badge/Linux-FCC624?style=flat-square&logo=linux&logoColor=black" alt="Linux" />
+  <img src="https://img.shields.io/badge/Android-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android" />
+  <img src="https://img.shields.io/badge/iOS-000000?style=flat-square&logo=ios&logoColor=white" alt="iOS" />
 </p>
 
 ---
