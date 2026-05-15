@@ -1,6 +1,6 @@
 {
   "name": "ai-agent-notifier",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Cross-platform notifications for AI coding agents (Claude Code, Codex, Gemini CLI, Cursor)",
   "type": "module",
   "bin": {

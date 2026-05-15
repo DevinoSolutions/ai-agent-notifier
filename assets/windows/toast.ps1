@@ -3,7 +3,8 @@ param(
   [string]$Message = 'Needs your attention',
   [string]$Sound = 'Default',
   [string]$ProjectName = '',
-  [string]$Cwd = ''
+  [string]$Cwd = '',
+  [string]$Hwnd = '0'
 )
 $logo = Join-Path $PSScriptRoot '..\..\assets\icon.png'
 # Fallback if icon.png not at expected location
@@ -45,7 +46,13 @@ function Get-AncestorWindowHandle {
 }
 
 if ($ProjectName) {
-  $hwnd = Get-AncestorWindowHandle
+  # Prefer hwnd passed from Node.js (stable, from the right process tree)
+  # Fall back to walking our own ancestor tree (less reliable with multiple windows)
+  if ($Hwnd -ne '0') {
+    $hwnd = $Hwnd
+  } else {
+    $hwnd = Get-AncestorWindowHandle
+  }
   $launchUri = "agentfocus://$([uri]::EscapeDataString($ProjectName))/?hwnd=$hwnd"
 }
 
