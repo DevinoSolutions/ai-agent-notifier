@@ -45,15 +45,15 @@ function Get-AncestorWindowHandle {
   return 0
 }
 
-if ($ProjectName) {
-  # Prefer hwnd passed from Node.js (stable, from the right process tree)
-  # Fall back to walking our own ancestor tree (less reliable with multiple windows)
+if ($ProjectName -or $Cwd) {
   if ($Hwnd -ne '0') {
     $hwnd = $Hwnd
   } else {
     $hwnd = Get-AncestorWindowHandle
   }
-  $launchUri = "agentfocus://$([uri]::EscapeDataString($ProjectName))/?hwnd=$hwnd"
+  $encodedName = if ($ProjectName) { [uri]::EscapeDataString($ProjectName) } else { '_' }
+  $launchUri = "agentfocus://$encodedName/?hwnd=$hwnd"
+  if ($Cwd) { $launchUri += "&cwd=$([uri]::EscapeDataString($Cwd))" }
 }
 
 try {

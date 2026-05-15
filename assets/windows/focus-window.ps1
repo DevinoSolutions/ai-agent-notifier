@@ -9,13 +9,19 @@ if ($raw -match '\?(.+)$') {
 $target = [uri]::UnescapeDataString(($raw -replace '/$',''))
 
 $requestedHwnd = [IntPtr]::Zero
+$cwd = ''
 if ($query) {
   foreach ($pair in ($query -split '&')) {
     $kv = $pair -split '=', 2
-    if ($kv.Count -eq 2 -and $kv[0] -eq 'hwnd') {
-      $parsed = [int64]0
-      if ([int64]::TryParse($kv[1], [ref]$parsed) -and $parsed -ne 0) {
-        $requestedHwnd = [IntPtr]::new($parsed)
+    if ($kv.Count -eq 2) {
+      if ($kv[0] -eq 'hwnd') {
+        $parsed = [int64]0
+        if ([int64]::TryParse($kv[1], [ref]$parsed) -and $parsed -ne 0) {
+          $requestedHwnd = [IntPtr]::new($parsed)
+        }
+      }
+      if ($kv[0] -eq 'cwd') {
+        $cwd = [uri]::UnescapeDataString($kv[1])
       }
     }
   }
@@ -61,26 +67,49 @@ function Focus-Window($h) {
   [WinUtil]::SetForegroundWindow($h) | Out-Null
 }
 
-if ($requestedHwnd -ne [IntPtr]::Zero -and [WinUtil]::IsWindow($requestedHwnd)) {
-  Focus-Window $requestedHwnd
-  return
+if (-not $target -and -not $cwd) { return }
+
+$all = [WinUtil]::EnumerateTopLevelWindows()
+
+# Build search terms from CWD — the workspace folder name that VS Code shows in title
+# e.g. CWD "C:\Users\amind\Projects\agent-notify" → match "agent-notify" in title
+$cwdFolder = ''
+if ($cwd) {
+  $cwdFolder = Split-Path $cwd -Leaf
 }
 
-if (-not $target) { return }
-$targetLower = $target.ToLower()
-$all = [WinUtil]::EnumerateTopLevelWindows()
-$candidates = $all | Where-Object { $_.Value.ToLower().Contains($targetLower) }
+# Use the most specific identifier: CWD folder name > project name
+$searchTerm = if ($cwdFolder) { $cwdFolder } else { $target }
+$searchLower = $searchTerm.ToLower()
 
+# Find windows whose title contains the project/folder name
+$candidates = $all | Where-Object { $_.Value.ToLower().Contains($searchLower) }
+
+# Priority 1: Terminal window with project name in title (most specific)
 $terminalPatterns = @('Windows Terminal','WindowsTerminal','pwsh','PowerShell','Warp','WezTerm','Alacritty','Hyper','ConEmu','cmd.exe','Command Prompt','tmux')
-
 $hit = $candidates | Where-Object {
   $t = $_.Value
   foreach ($pat in $terminalPatterns) { if ($t -match [regex]::Escape($pat)) { return $true } }
   return $false
 } | Select-Object -First 1
 
-if (-not $hit) { $hit = $candidates | Where-Object { $_.Value -match 'Visual Studio Code$' } | Select-Object -First 1 }
-if (-not $hit) { $hit = $candidates | Where-Object { $_.Value -match 'Cursor' } | Select-Object -First 1 }
+# Priority 2: VS Code window with project name in title (specific to this workspace)
+if (-not $hit) {
+  $hit = $candidates | Where-Object { $_.Value -match 'Visual Studio Code' } | Select-Object -First 1
+}
+
+# Priority 3: Cursor window with project name in title
+if (-not $hit) {
+  $hit = $candidates | Where-Object { $_.Value -match 'Cursor' } | Select-Object -First 1
+}
+
+# Priority 4: Any window with project name
 if (-not $hit) { $hit = $candidates | Select-Object -First 1 }
+
+# Priority 5: Fall back to hwnd if title matching found nothing
+if (-not $hit -and $requestedHwnd -ne [IntPtr]::Zero -and [WinUtil]::IsWindow($requestedHwnd)) {
+  Focus-Window $requestedHwnd
+  return
+}
 
 if ($hit) { Focus-Window $hit.Key }

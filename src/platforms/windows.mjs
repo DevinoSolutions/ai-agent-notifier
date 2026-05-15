@@ -53,6 +53,10 @@ export async function sendToast(notification) {
       args.push('-ProjectName', notification.projectName);
     }
 
+    if (notification.cwd) {
+      args.push('-Cwd', notification.cwd);
+    }
+
     if (hwnd !== '0') {
       args.push('-Hwnd', hwnd);
     }
