@@ -5,19 +5,19 @@
     "url": "https://github.com/DevinoSolutions"
   },
   "metadata": {
-    "description": "Cross-platform notifications for AI coding agents",
-    "version": "1.0.0"
+    "description": "Desktop & phone notifications for AI coding agents in VS Code and CLI",
+    "version": "1.0.7"
   },
   "plugins": [{
     "name": "ai-agent-notifier",
     "source": "./",
-    "description": "Cross-platform notifications for AI coding agents (Claude Code, Codex, Gemini, Cursor)",
-    "version": "1.0.0",
+    "description": "Desktop & phone notifications for AI coding agents. Supports Claude Code, Codex, Gemini CLI, and Cursor with toast alerts and ntfy push.",
+    "version": "1.0.7",
     "author": { "name": "DevinoSolutions" },
     "repository": "https://github.com/DevinoSolutions/ai-agent-notifier",
-    "license": "MIT",
-    "keywords": ["notifications", "toast", "ntfy", "hooks"],
+    "license": "AGPL-3.0-or-later",
+    "keywords": ["notifications", "toast", "ntfy", "hooks", "vscode", "ai-coding", "push-notifications"],
     "category": "productivity",
-    "tags": ["notifications", "hooks", "alerts"]
+    "tags": ["notifications", "hooks", "alerts", "desktop-notifications", "push-notifications"]
   }]
 }
