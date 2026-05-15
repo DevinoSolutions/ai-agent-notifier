@@ -63,6 +63,21 @@ describe('patch-config', () => {
     assert.equal(stopHook._managed_by, 'ai-agent-notifier');
   });
 
+  it('patches Gemini into settings.json with ms timeout', async () => {
+    const { patchGemini } = await import('../setup/patch-config.mjs');
+    const geminiDir = path.join(tmpDir, '.gemini');
+    fs.mkdirSync(geminiDir, { recursive: true });
+    fs.writeFileSync(path.join(geminiDir, 'settings.json'), '{"security":{}}');
+    patchGemini(geminiDir, '/path/to/notify.mjs');
+    const settings = JSON.parse(fs.readFileSync(path.join(geminiDir, 'settings.json'), 'utf8'));
+    // Hooks in settings.json, not hooks.json
+    assert.ok(settings.hooks.AfterAgent);
+    assert.ok(settings.hooks.Notification);
+    assert.equal(settings.security !== undefined, true);
+    // Timeout in milliseconds
+    assert.equal(settings.hooks.AfterAgent[0].hooks[0].timeout, 10000);
+  });
+
   it('is idempotent — does not duplicate hooks on re-run', async () => {
     const { patchClaude } = await import('../setup/patch-config.mjs');
     const claudeDir = path.join(tmpDir, '.claude3');

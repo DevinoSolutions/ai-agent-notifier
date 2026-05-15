@@ -22,12 +22,12 @@ function backup(filePath, backupDir) {
   fs.copyFileSync(filePath, path.join(backupDir, `${name}.${stamp}.backup`));
 }
 
-function makeHookEntry(notifyPath, source, tag) {
+function makeHookEntry(notifyPath, source, { tag = true, timeout = 10 } = {}) {
   const entry = {
     hooks: [{
       type: 'command',
       command: `node "${notifyPath}" --source ${source}`,
-      timeout: 10,
+      timeout,
     }],
   };
   if (tag) entry._managed_by = MANAGED_TAG;
@@ -47,10 +47,9 @@ export function patchClaude(claudeDir, notifyPath, backupDir) {
   const settings = readJSON(settingsPath) || {};
   if (!settings.hooks) settings.hooks = {};
 
-  const hook = makeHookEntry(notifyPath, 'claude', true);
+  const hook = makeHookEntry(notifyPath, 'claude', { timeout: 10 });
   hook.matcher = '';
 
-  // Remove old managed hooks, then add fresh
   settings.hooks.Notification = [...removeManagedHooks(settings.hooks.Notification), hook];
   settings.hooks.Stop = [...removeManagedHooks(settings.hooks.Stop), hook];
 
@@ -63,8 +62,9 @@ export function patchCodex(codexDir, notifyPath, backupDir) {
   const existing = readJSON(hooksPath) || { hooks: {} };
   if (!existing.hooks) existing.hooks = {};
 
-  const stopHook = makeHookEntry(notifyPath, 'codex', true);
-  const permHook = makeHookEntry(notifyPath, 'codex', true);
+  // Codex timeout is in seconds
+  const stopHook = makeHookEntry(notifyPath, 'codex', { timeout: 10 });
+  const permHook = makeHookEntry(notifyPath, 'codex', { timeout: 10 });
   permHook.matcher = '';
 
   existing.hooks.Stop = [...removeManagedHooks(existing.hooks.Stop), stopHook];
@@ -92,7 +92,8 @@ export function patchCursor(cursorDir, notifyPath, backupDir) {
   const existing = readJSON(hooksPath) || { hooks: {} };
   if (!existing.hooks) existing.hooks = {};
 
-  const hook = makeHookEntry(notifyPath, 'cursor', true);
+  // Cursor timeout is in seconds (same as Claude Code)
+  const hook = makeHookEntry(notifyPath, 'cursor', { timeout: 10 });
 
   existing.hooks.stop = [...removeManagedHooks(existing.hooks.stop), hook];
   existing.hooks.notification = [...removeManagedHooks(existing.hooks.notification), hook];
@@ -101,17 +102,40 @@ export function patchCursor(cursorDir, notifyPath, backupDir) {
 }
 
 export function patchGemini(geminiDir, notifyPath, backupDir) {
-  const hooksPath = path.join(geminiDir, 'hooks.json');
-  backup(hooksPath, backupDir);
-  const existing = readJSON(hooksPath) || { hooks: {} };
-  if (!existing.hooks) existing.hooks = {};
+  // Gemini CLI reads hooks from settings.json, NOT hooks.json
+  const settingsPath = path.join(geminiDir, 'settings.json');
+  backup(settingsPath, backupDir);
+  const settings = readJSON(settingsPath) || {};
+  if (!settings.hooks) settings.hooks = {};
 
-  const hook = makeHookEntry(notifyPath, 'gemini', true);
+  // Gemini timeout is in milliseconds (default 60000)
+  const hook = makeHookEntry(notifyPath, 'gemini', { timeout: 10000 });
 
-  existing.hooks.AfterAgent = [...removeManagedHooks(existing.hooks.AfterAgent), hook];
-  existing.hooks.Notification = [...removeManagedHooks(existing.hooks.Notification), hook];
+  settings.hooks.AfterAgent = [...removeManagedHooks(settings.hooks.AfterAgent), hook];
+  settings.hooks.Notification = [...removeManagedHooks(settings.hooks.Notification), hook];
 
-  writeJSON(hooksPath, existing);
+  writeJSON(settingsPath, settings);
+
+  // Clean up stale hooks.json if we created one previously
+  const staleHooksPath = path.join(geminiDir, 'hooks.json');
+  const staleData = readJSON(staleHooksPath);
+  if (staleData?.hooks) {
+    let changed = false;
+    for (const event of ['AfterAgent', 'Notification']) {
+      if (staleData.hooks[event]) {
+        staleData.hooks[event] = removeManagedHooks(staleData.hooks[event]);
+        if (staleData.hooks[event].length === 0) delete staleData.hooks[event];
+        changed = true;
+      }
+    }
+    if (changed) {
+      if (Object.keys(staleData.hooks).length === 0) {
+        try { fs.unlinkSync(staleHooksPath); } catch { /* ignore */ }
+      } else {
+        writeJSON(staleHooksPath, staleData);
+      }
+    }
+  }
 }
 
 export function unpatchAll(homeDir, backupDir) {
@@ -119,7 +143,7 @@ export function unpatchAll(homeDir, backupDir) {
     { dir: '.claude', file: 'settings.json', events: ['Notification', 'Stop'] },
     { dir: '.codex', file: 'hooks.json', events: ['Stop', 'PermissionRequest'] },
     { dir: '.cursor', file: 'hooks.json', events: ['stop', 'notification'] },
-    { dir: '.gemini', file: 'hooks.json', events: ['AfterAgent', 'Notification'] },
+    { dir: '.gemini', file: 'settings.json', events: ['AfterAgent', 'Notification'] },
   ];
 
   for (const tool of tools) {
