@@ -9,7 +9,8 @@
   <img src="assets/icons/claude.png" alt="Claude Code" width="36" />&nbsp;&nbsp;
   <img src="assets/icons/codex.png" alt="Codex CLI" width="36" />&nbsp;&nbsp;
   <img src="assets/icons/cursor.png" alt="Cursor" width="36" />&nbsp;&nbsp;
-  <img src="assets/icons/gemini.png" alt="Gemini CLI" width="36" />
+  <img src="assets/icons/gemini.png" alt="Gemini CLI" width="36" />&nbsp;&nbsp;
+  <img src="assets/icons/vscode.png" alt="VS Code" width="36" />
 </p>
 
 <p align="center">
