@@ -1,6 +1,6 @@
 {
   "name": "ai-agent-notifier",
-  "version": "1.0.7",
+  "version": "1.0.4",
   "description": "Desktop & phone notifications for AI coding agents in VS Code and CLI. Supports Claude Code, Codex, Gemini CLI, and Cursor.",
   "author": {
     "name": "DevinoSolutions",
