@@ -52,10 +52,18 @@ describe('parseInput', () => {
     assert.equal(result.event, 'task_complete');
   });
 
-  it('normalizes Cursor notification event', () => {
-    const raw = { session_id: 'cu2', cwd: '/code/app', hook_event_name: 'notification' };
+  it('normalizes Cursor sessionEnd event', () => {
+    const raw = { session_id: 'cu2', cwd: '/code/app', hook_event_name: 'sessionEnd' };
     const result = parseInput(raw, 'cursor');
-    assert.equal(result.event, 'needs_input');
+    assert.equal(result.event, 'task_complete');
+  });
+
+  it('uses --event override when stdin has no hook_event_name', () => {
+    // Cursor and Codex pass --event as CLI arg since they don't include hook_event_name in stdin
+    const raw = { status: 'completed', loop_count: 0 };
+    const result = parseInput(raw, 'cursor', 'stop');
+    assert.equal(result.event, 'task_complete');
+    assert.equal(result.rawEvent, 'stop');
   });
 
   it('normalizes SessionStart across tools', () => {

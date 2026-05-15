@@ -11,14 +11,20 @@ describe('patch-config', () => {
   beforeEach(() => fs.mkdirSync(tmpDir, { recursive: true }));
   afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
-  it('creates hooks.json for Codex when none exists', async () => {
+  it('creates hooks.json and writes trust hashes to config.toml for Codex', async () => {
     const { patchCodex } = await import('../setup/patch-config.mjs');
     const codexDir = path.join(tmpDir, '.codex');
     fs.mkdirSync(codexDir, { recursive: true });
     patchCodex(codexDir, '/path/to/notify.mjs');
     const hooks = JSON.parse(fs.readFileSync(path.join(codexDir, 'hooks.json'), 'utf8'));
     assert.ok(hooks.hooks.Stop);
-    assert.ok(hooks.hooks.PermissionRequest);
+    assert.ok(hooks.hooks.SessionStart);
+    // Trust hashes written to config.toml
+    const toml = fs.readFileSync(path.join(codexDir, 'config.toml'), 'utf8');
+    assert.ok(toml.includes('[hooks.state]'));
+    assert.ok(toml.includes('trusted_hash = "sha256:'));
+    assert.ok(toml.includes(':stop:0:0'));
+    assert.ok(toml.includes(':session_start:0:0'));
   });
 
   it('merges into existing Claude settings.json without overwriting', async () => {
@@ -53,14 +59,21 @@ describe('patch-config', () => {
     assert.ok(backups.length > 0);
   });
 
-  it('tags managed hooks for uninstall', async () => {
+  it('Cursor hooks use flat format with version 1, only stop event', async () => {
     const { patchCursor } = await import('../setup/patch-config.mjs');
     const cursorDir = path.join(tmpDir, '.cursor');
     fs.mkdirSync(cursorDir, { recursive: true });
     patchCursor(cursorDir, '/path/to/notify.mjs');
     const hooks = JSON.parse(fs.readFileSync(path.join(cursorDir, 'hooks.json'), 'utf8'));
-    const stopHook = hooks.hooks.stop[0];
-    assert.equal(stopHook._managed_by, 'ai-agent-notifier');
+    // version field required by Cursor
+    assert.equal(hooks.version, 1);
+    // stop event exists with flat format: { command: "..." }
+    assert.ok(hooks.hooks.stop);
+    assert.ok(hooks.hooks.stop[0].command.includes('notify.mjs'));
+    // NOT nested — no hooks array inside entries (unlike Claude/Codex format)
+    assert.equal(hooks.hooks.stop[0].hooks, undefined);
+    // notification event does NOT exist
+    assert.equal(hooks.hooks.notification, undefined);
   });
 
   it('patches Gemini into settings.json with ms timeout', async () => {

@@ -19,12 +19,15 @@ const EVENT_MAP = {
   },
   cursor: {
     stop: 'task_complete',
-    notification: 'needs_input',
+    sessionEnd: 'task_complete',
+    subagentStop: 'task_complete',
   },
 };
 
-export function parseInput(raw, source) {
-  const hookEvent = raw.hook_event_name || raw.hookEventName || '';
+export function parseInput(raw, source, eventOverride) {
+  // --event CLI arg takes priority (used by Codex/Cursor which don't send hook_event_name on stdin).
+  // Claude and Gemini include hook_event_name in stdin JSON.
+  const hookEvent = eventOverride || raw.hook_event_name || raw.hookEventName || '';
   const cwd = raw.cwd || '';
   const map = EVENT_MAP[source] || {};
 
