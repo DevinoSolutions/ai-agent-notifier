@@ -111,6 +111,63 @@ function codexHookHash(eventName, command, { timeout, matcher, isAsync = false, 
   return `sha256:${hash}`;
 }
 
+// Rewrite the [hooks.state] namespace deterministically so the config stays valid
+// no matter what was there before: a prior install of ours, codex's own runtime
+// state, or an already-corrupted file with duplicate keys.
+//
+// Codex keys each trust entry by "<hooks.json path>:<event>:<group>:<handler>"
+// (e.g. "C:\\Users\\me\\.codex\\hooks.json:stop:0:0"), NOT by the notifier path —
+// so previously-written entries can't be matched by package name. Instead we:
+//   1. lift every [hooks.state] / [hooks.state.'k'] block out of the file,
+//   2. keep at most one entry per key (collapsing any duplicates),
+//   3. drop the keys we are about to (re)write, and
+//   4. re-emit a single clean [hooks.state] section with our fresh entries.
+// Everything outside the hooks.state namespace is preserved verbatim and in place.
+function rebuildHooksState(toml, trustEntries) {
+  const eol = toml.includes('\r\n') ? '\r\n' : '\n';
+  const lines = toml.split(/\r?\n/);
+  const isHeader = (l) => { const t = l.trim(); return t.startsWith('[') && t.endsWith(']'); };
+  const ourKeys = new Set(trustEntries.map((e) => e.key));
+
+  const kept = [];             // every line that is NOT part of hooks.state
+  const preserved = new Map(); // foreign state key -> body lines (first occurrence wins)
+
+  for (let i = 0; i < lines.length;) {
+    const line = lines[i];
+    if (isHeader(line)) {
+      const inside = line.trim().slice(1, -1);
+      const sub = inside.match(/^hooks\.state\.(?:'(.*)'|"(.*)")$/);
+      if (inside === 'hooks.state' || sub) {
+        // Consume this block's body (lines up to the next table header).
+        let j = i + 1;
+        const body = [];
+        while (j < lines.length && !isHeader(lines[j])) { body.push(lines[j]); j++; }
+        if (sub) {
+          const key = sub[1] ?? sub[2];
+          if (!ourKeys.has(key) && !preserved.has(key)) preserved.set(key, body);
+        }
+        i = j;
+        continue;
+      }
+    }
+    kept.push(line);
+    i++;
+  }
+
+  while (kept.length && kept[kept.length - 1].trim() === '') kept.pop();
+
+  const region = ['[hooks.state]'];
+  for (const [key, body] of preserved) {
+    region.push('', `[hooks.state.'${key}']`);
+    for (const b of body) if (b.trim() !== '') region.push(b);
+  }
+  for (const { key, hash } of trustEntries) {
+    region.push('', `[hooks.state.'${key}']`, `trusted_hash = "${hash}"`);
+  }
+
+  return kept.join(eol) + eol + eol + region.join(eol) + eol;
+}
+
 export function patchCodex(codexDir, notifyPath, backupDir) {
   const hooksPath = path.join(codexDir, 'hooks.json');
   backup(hooksPath, backupDir);
@@ -165,18 +222,10 @@ export function patchCodex(codexDir, notifyPath, backupDir) {
     }
   }
 
-  // Write trust hashes to [hooks.state] — remove old entries first
-  // Strip existing hooks.state sections that reference our notify.mjs (handles both
-  // agent-notify directory name and ai-agent-notifier package name)
-  toml = toml.replace(/\[hooks\.state\.'[^']*(?:agent-notify|ai-agent-notifier)[^']*'\]\s*trusted_hash\s*=\s*"[^"]*"\s*/g, '');
-  // Ensure [hooks.state] section exists
-  if (!toml.includes('[hooks.state]')) {
-    toml += '\n[hooks.state]\n';
-  }
-  // Append trust entries
-  for (const { key, hash } of trustEntries) {
-    toml += `\n[hooks.state.'${key}']\ntrusted_hash = "${hash}"\n`;
-  }
+  // Rewrite [hooks.state] from scratch. Re-running setup, or running it after
+  // codex has written its own trust state, must never leave duplicate TOML keys
+  // (which make codex fail to load config.toml with a "duplicate key" error).
+  toml = rebuildHooksState(toml, trustEntries);
 
   fs.writeFileSync(tomlPath, toml, 'utf8');
 }

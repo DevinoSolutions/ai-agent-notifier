@@ -271,3 +271,86 @@ describe('Windows path normalization', () => {
     assert.ok(!cmd.includes('\\'), `Command should use forward slashes: ${cmd}`);
   });
 });
+
+describe('Codex config.toml hooks.state idempotency & repair', () => {
+  beforeEach(() => fs.mkdirSync(tmpDir, { recursive: true }));
+  afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+
+  // Count occurrences of each [hooks.state.'<key>'] sub-table header.
+  // TOML forbids defining the same table key twice — any count > 1 means
+  // codex will fail to load with a "duplicate key" error.
+  function stateHeaderCounts(toml) {
+    const counts = new Map();
+    for (const line of toml.split(/\r?\n/)) {
+      const m = line.trim().match(/^\[hooks\.state\.(?:'(.*)'|"(.*)")\]$/);
+      if (m) {
+        const key = m[1] ?? m[2];
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+    }
+    return counts;
+  }
+
+  it('does not duplicate [hooks.state] entries on re-run', async () => {
+    const { patchCodex } = await import('../setup/patch-config.mjs');
+    const codexDir = path.join(tmpDir, '.codex-state-rerun');
+    fs.mkdirSync(codexDir, { recursive: true });
+    const notify = '/home/user/.npm/ai-agent-notifier/src/notify.mjs';
+    patchCodex(codexDir, notify);
+    patchCodex(codexDir, notify);
+    const toml = fs.readFileSync(path.join(codexDir, 'config.toml'), 'utf8');
+    const counts = stateHeaderCounts(toml);
+    for (const [key, count] of counts) {
+      assert.equal(count, 1, `duplicate [hooks.state.'${key}'] (${count}x)`);
+    }
+    // Both managed entries still present exactly once
+    assert.ok([...counts.keys()].some(k => k.endsWith(':stop:0:0')));
+    assert.ok([...counts.keys()].some(k => k.endsWith(':session_start:0:0')));
+  });
+
+  it('repairs a config.toml that already has duplicate hooks.state entries', async () => {
+    const { patchCodex } = await import('../setup/patch-config.mjs');
+    const codexDir = path.join(tmpDir, '.codex-state-repair');
+    fs.mkdirSync(codexDir, { recursive: true });
+    const notify = '/home/user/.npm/ai-agent-notifier/src/notify.mjs';
+
+    // A clean install produces two valid managed trust entries.
+    patchCodex(codexDir, notify);
+    const tomlPath = path.join(codexDir, 'config.toml');
+    let toml = fs.readFileSync(tomlPath, 'utf8');
+    const blocks = [...toml.matchAll(/\[hooks\.state\.'([^']+)'\]\s*\r?\ntrusted_hash = "([^"]+)"/g)];
+    assert.equal(blocks.length, 2, 'expected two managed state entries after first install');
+    const [b1, b2] = blocks;
+
+    // Reproduce the real-world breakage seen in ~/.codex/config.toml:
+    //   - codex records `enabled = true` on one managed entry
+    //   - codex writes a [plugins.*] section AFTER our hooks.state block
+    //   - an older buggy setup run appended duplicate state blocks at the end
+    toml = toml.replace(
+      `[hooks.state.'${b1[1]}']\ntrusted_hash = "${b1[2]}"`,
+      `[hooks.state.'${b1[1]}']\nenabled = true\ntrusted_hash = "${b1[2]}"`
+    );
+    toml += `\n[plugins."github@openai-curated"]\nenabled = true\n`;
+    toml += `\n[hooks.state.'${b2[1]}']\ntrusted_hash = "${b2[2]}"\n`;
+    toml += `\n[hooks.state.'${b1[1]}']\ntrusted_hash = "${b1[2]}"\n`;
+    fs.writeFileSync(tomlPath, toml, 'utf8');
+
+    // Sanity: the seeded file is genuinely broken (a key appears more than once).
+    assert.ok([...stateHeaderCounts(toml).values()].some(c => c > 1), 'seed must contain a duplicate');
+
+    // Re-running setup must repair the file in place.
+    patchCodex(codexDir, notify);
+    const after = fs.readFileSync(tomlPath, 'utf8');
+    const counts = stateHeaderCounts(after);
+    for (const [key, count] of counts) {
+      assert.equal(count, 1, `duplicate [hooks.state.'${key}'] remains (${count}x)`);
+    }
+    // Unrelated codex-owned sections are preserved.
+    assert.ok(after.includes('[plugins."github@openai-curated"]'), 'plugins section preserved');
+    // Both managed trust entries survive with their hashes.
+    assert.ok(after.includes(`[hooks.state.'${b1[1]}']`));
+    assert.ok(after.includes(`[hooks.state.'${b2[1]}']`));
+    assert.ok(after.includes(`trusted_hash = "${b1[2]}"`));
+    assert.ok(after.includes(`trusted_hash = "${b2[2]}"`));
+  });
+});
