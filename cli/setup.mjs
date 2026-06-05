@@ -122,8 +122,9 @@ function collectStdin() {
 }
 
 // A readline-compatible shim that pops answers from a pre-collected lines array.
-// question(prompt, callback) immediately calls callback with the next line (trimmed),
-// so it works correctly even after all stdin data has been received.
+// question(prompt, callback) immediately calls callback with the next raw line
+// (callers ask()/askYN() trim it), so it works correctly even after all stdin
+// data has been received.
 function makeLineShim(lines) {
   let idx = 0;
   return {
