@@ -30,7 +30,11 @@ export function classifySmoke(positive, negative, patterns) {
   return negErrored ? 'verified' : 'launch-only';
 }
 
-const PATTERNS = ['failed to parse', 'duplicate key', 'invalid config', 'syntax error', 'could not parse', 'unexpected'];
+// Specific parse-error phrasings only. The negative control relies primarily on a
+// non-zero exit; these patterns are a backup for CLIs that print an error but exit 0.
+// Avoid bare 'unexpected' — it can appear in a CLI's normal --version/telemetry output
+// and would spuriously fail the positive run (esp. the blocking codex --require-verified).
+const PATTERNS = ['failed to parse', 'could not parse', 'duplicate key', 'invalid config', 'syntax error', 'unexpected token', 'unexpected character'];
 
 const CLIS = {
   claude: { bin: 'claude', args: ['--version'], dir: '.claude', patch: patchClaude,
