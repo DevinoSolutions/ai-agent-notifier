@@ -101,8 +101,56 @@ function migrateExistingTopic() {
   return null;
 }
 
+// Collect stdin into memory before any synchronous blocking operations.
+// On Windows, execSync (e.g. BurntToast install) blocks the event loop for tens of seconds.
+// During that time, the OS pipe buffer fills and stdin EOF arrives. When the event loop
+// resumes, readline has already processed all buffered input and closed — causing
+// "readline was closed" on subsequent rl.question() calls.
+// Fix: collect all stdin upfront, then create a readline shim that serves answers on demand.
+function collectStdin() {
+  return new Promise((resolve) => {
+    if (!process.stdin.isTTY) {
+      const chunks = [];
+      process.stdin.on('data', (c) => chunks.push(c));
+      process.stdin.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      process.stdin.on('error', () => resolve(''));
+      process.stdin.resume();
+    } else {
+      resolve(null); // TTY: readline reads live from stdin directly
+    }
+  });
+}
+
+// A readline-compatible shim that pops answers from a pre-collected lines array.
+// question(prompt, callback) immediately calls callback with the next line (trimmed),
+// so it works correctly even after all stdin data has been received.
+function makeLineShim(lines) {
+  let idx = 0;
+  return {
+    get closed() { return false; },
+    question(prompt, callback) {
+      process.stdout.write(prompt);
+      const answer = idx < lines.length ? lines[idx++] : '';
+      // Use setImmediate to be async like real readline (avoids stack overflows and
+      // ensures the calling async function can properly await between questions).
+      setImmediate(() => callback(answer));
+    },
+    close() { /* no-op: no underlying stream to close */ },
+  };
+}
+
 export async function run() {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  // Collect all stdin before any synchronous blocking work (Windows execSync safety).
+  const stdinData = await collectStdin();
+
+  let rl;
+  if (stdinData !== null) {
+    // Non-TTY (piped): serve answers from the pre-collected buffer, one per question call.
+    const lines = stdinData.split(/\r?\n/);
+    rl = makeLineShim(lines);
+  } else {
+    rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  }
 
   log('\n  ai-agent-notifier \u2014 cross-platform AI agent notifications\n', 'bold');
 
