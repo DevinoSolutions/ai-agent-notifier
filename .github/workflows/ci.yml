@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    name: Unit (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm test
+
+  e2e:
+    name: E2E real-world (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Real ntfy + hook + setup e2e
+        run: npm run test:e2e
+
+  agents:
+    name: Install + smoke-load CLIs (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install agent CLIs (npm)
+        run: npm install -g @anthropic-ai/claude-code @google/gemini-cli @openai/codex
+      - name: Assert CLIs run
+        run: |
+          claude --version
+          gemini --version
+          codex --version
+      - name: Install cursor-agent (best-effort, non-Windows)
+        if: runner.os != 'Windows'
+        continue-on-error: true
+        run: curl https://cursor.com/install -fsS | bash
+      - name: Smoke-load Codex (require verified)
+        run: node scripts/smoke-load.mjs --cli codex --require-verified
+      - name: Smoke-load Claude
+        run: node scripts/smoke-load.mjs --cli claude
+      - name: Smoke-load Gemini
+        run: node scripts/smoke-load.mjs --cli gemini
+      - name: Smoke-load Cursor (skips if absent)
+        run: node scripts/smoke-load.mjs --cli cursor
+
+  live-gemini:
+    name: Live Gemini E2E (free tier)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm install -g @google/gemini-cli
+      - name: Drive Gemini end-to-end
+        if: ${{ env.GEMINI_API_KEY != '' }}
+        run: node scripts/live-gemini.mjs
+
+  live-claude:
+    name: Live Claude E2E (optional, paid)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: Drive Claude end-to-end
+        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+        run: node scripts/live-claude.mjs
