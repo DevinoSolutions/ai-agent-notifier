@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { randomTopic, parseNtfyMessages, seedTempHome, writeUserConfig } from './helpers.mjs';
+import { randomTopic, parseNtfyMessages, seedTempHome, writeUserConfig, clearLock, runNode } from './helpers.mjs';
 
 describe('randomTopic', () => {
   it('uses the prefix and is unguessable/unique', () => {
@@ -53,6 +53,36 @@ describe('seedTempHome + writeUserConfig', () => {
       writeUserConfig(home, { ntfy: { topic: 'xyz' } });
       const cfg = JSON.parse(fs.readFileSync(path.join(home, '.ai-agent-notifier', 'config.json'), 'utf8'));
       assert.equal(cfg.ntfy.topic, 'xyz');
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('clearLock', () => {
+  it('removes an existing lock and is a no-op when missing', () => {
+    const home = seedTempHome();
+    try {
+      const dir = path.join(home, '.ai-agent-notifier');
+      fs.mkdirSync(dir, { recursive: true });
+      const lock = path.join(dir, '.lock-claude');
+      fs.writeFileSync(lock, '123');
+      clearLock(home, 'claude');
+      assert.equal(fs.existsSync(lock), false);
+      assert.doesNotThrow(() => clearLock(home, 'claude')); // missing -> no throw
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('runNode', () => {
+  it('runs node with an isolated HOME/USERPROFILE', () => {
+    const home = seedTempHome();
+    try {
+      const res = runNode(['-e', 'process.stdout.write(process.env.HOME + "|" + process.env.USERPROFILE)'], { home });
+      assert.equal(res.status, 0);
+      assert.ok(res.stdout.includes(home), `expected stdout to include the temp home: ${res.stdout}`);
     } finally {
       fs.rmSync(home, { recursive: true, force: true });
     }

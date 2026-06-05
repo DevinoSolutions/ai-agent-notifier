@@ -27,6 +27,7 @@ export function randomTopic(prefix = 'aan-ci') {
 
 // Parse ntfy's newline-delimited JSON stream, returning only delivered messages.
 export function parseNtfyMessages(text) {
+  if (typeof text !== 'string') return [];
   const out = [];
   for (const line of String(text).split('\n')) {
     const t = line.trim();
@@ -72,7 +73,7 @@ export function runNode(args, { home, stdin = '', extraEnv = {}, timeout = 12000
 }
 
 // Poll ntfy for a message matching `match`. Returns the message or null.
-export function ntfyPoll({ server = 'https://ntfy.sh', topic, match, attempts = 12, delayMs = 1500 }) {
+export async function ntfyPoll({ server = 'https://ntfy.sh', topic, match, attempts = 12, delayMs = 1500 }) {
   const url = `${server.replace(/\/+$/, '')}/${topic}/json?poll=1`;
   const transport = url.startsWith('https:') ? https : http;
   const getOnce = () => new Promise((resolve) => {
@@ -84,13 +85,11 @@ export function ntfyPoll({ server = 'https://ntfy.sh', topic, match, attempts = 
     req.on('error', () => resolve(''));
     req.on('timeout', () => { req.destroy(); resolve(''); });
   });
-  return (async () => {
-    for (let i = 0; i < attempts; i++) {
-      const body = await getOnce();
-      const hit = parseNtfyMessages(body).find(match);
-      if (hit) return hit;
-      await new Promise((r) => setTimeout(r, delayMs));
-    }
-    return null;
-  })();
+  for (let i = 0; i < attempts; i++) {
+    const body = await getOnce();
+    const hit = parseNtfyMessages(body).find(match);
+    if (hit) return hit;
+    if (i < attempts - 1) await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return null;
 }
