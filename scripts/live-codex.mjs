@@ -2,8 +2,8 @@
 // HARD checks (any failure exits non-zero):
 //   1. OPENAI_API_KEY must be present.
 //   2. codex runs our prompt in exec mode and produces output.
-// NOTE: Codex hooks only fire inside the interactive TUI (not exec/--full-auto
-// mode). Hook delivery is verified by the unit + e2e suites via a real spawned
+// NOTE: Codex hooks only fire inside the interactive TUI (not exec mode).
+// Hook delivery is verified by the unit + e2e suites via a real spawned
 // notify.mjs; the live job here validates API key auth and CLI connectivity.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -36,9 +36,10 @@ async function main() {
   // --dangerously-bypass-approvals-and-sandbox: skips all confirm prompts and
   //   sandbox restrictions; appropriate because GitHub Actions is already
   //   sandboxed at the runner level.
-  // --ephemeral: don't persist session files to disk.
   // --dangerously-bypass-hook-trust: skip trust verification for patched hooks.
-  // input: '' ensures stdin is empty so exec doesn't hang waiting for input.
+  // stdio: ['ignore', 'pipe', 'pipe']: explicitly ignore stdin (rather than
+  //   sending empty-string EOF which codex logs as "Reading additional input
+  //   from stdin..." and may cause an early exit).
   const res = spawnSync(
     'codex',
     [
@@ -46,14 +47,13 @@ async function main() {
       '--model', 'gpt-4o-mini',
       '--dangerously-bypass-approvals-and-sandbox',
       '--dangerously-bypass-hook-trust',
-      '--ephemeral',
       'Reply with the single word OK.',
     ],
-    { encoding: 'utf8', env, timeout: 120000, input: '' },
+    { encoding: 'utf8', env, timeout: 120000, stdio: ['ignore', 'pipe', 'pipe'] },
   );
   console.log('codex exit:', res.status);
-  console.log('codex stdout:', (res.stdout || '').slice(0, 500));
-  console.log('codex stderr:', (res.stderr || '').slice(0, 500));
+  console.log('codex stdout:', (res.stdout || '').slice(0, 2000));
+  console.log('codex stderr:', (res.stderr || '').slice(0, 2000));
 
   if (res.status !== 0 || !(res.stdout || '').trim()) {
     console.error('FAIL: codex did not run successfully');
