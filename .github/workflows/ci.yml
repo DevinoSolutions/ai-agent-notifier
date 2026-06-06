@@ -1,0 +1,189 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    name: Unit (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm test
+
+  e2e:
+    name: E2E real-world (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Real ntfy + hook + setup e2e
+        run: npm run test:e2e
+
+  agents:
+    name: Install + smoke-load CLIs (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install agent CLIs (npm)
+        run: npm install -g @anthropic-ai/claude-code @google/gemini-cli @openai/codex
+      - name: Assert CLIs run
+        run: |
+          claude --version
+          gemini --version
+          codex --version
+      - name: Install cursor-agent (best-effort, non-Windows)
+        if: runner.os != 'Windows'
+        continue-on-error: true
+        run: curl https://cursor.com/install -fsS | bash
+      - name: Smoke-load Codex (pinned classification — fails on drift)
+        run: node scripts/smoke-load.mjs --cli codex --expect launch-only
+      - name: Smoke-load Claude
+        run: node scripts/smoke-load.mjs --cli claude
+      - name: Smoke-load Gemini
+        run: node scripts/smoke-load.mjs --cli gemini
+      - name: Smoke-load Cursor (skips if absent)
+        run: node scripts/smoke-load.mjs --cli cursor
+
+  # Live jobs are REQUIRED (no continue-on-error) and run unconditionally: the
+  # script hard-fails if its key is missing, so a deleted/renamed secret — or a
+  # fork PR without secret access — turns the build red instead of skipping
+  # silently. Configure GEMINI_API_KEY / ANTHROPIC_API_KEY as repo secrets.
+  live-gemini:
+    name: Live Gemini E2E (required)
+    runs-on: ubuntu-latest
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm install -g @google/gemini-cli
+      - name: Drive Gemini end-to-end (hard-fails if key missing or hook silent)
+        run: node scripts/live-gemini.mjs
+
+  live-claude:
+    name: Live Claude E2E (required, paid)
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: Drive Claude end-to-end (hard-fails if key missing or hook silent)
+        run: node scripts/live-claude.mjs
+
+  live-codex:
+    name: Live Codex E2E (required)
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm install -g @openai/codex
+      - name: Verify OPENAI_API_KEY reaches OpenAI API
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            https://api.openai.com/v1/models/gpt-4o-mini)
+          echo "OpenAI API status for gpt-4o-mini: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: OpenAI API returned $STATUS — key invalid or model inaccessible"
+            exit 1
+          fi
+      - name: Drive Codex end-to-end (hard-fails if key missing)
+        run: node scripts/live-codex.mjs
+
+  live-cursor:
+    name: Live Cursor E2E (required)
+    runs-on: ubuntu-latest
+    env:
+      # Cursor supports BYO API keys — reuse OPENAI_API_KEY (already required
+      # by live-codex) so no separate cursor.com account is needed in CI.
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Validate Cursor config patching (hard-fails if key missing)
+        run: node scripts/live-cursor.mjs
+
+  # Real native desktop-notification coverage. Headless CI can't prove a human
+  # SAW a toast, but these go as far as automation allows:
+  #   - toast-linux fires through the real notify-send backend into a real
+  #     notification daemon (dunst) and asserts the captured title+body.
+  #   - toast-native fires the real osascript / BurntToast backend on macOS +
+  #     Windows and asserts the backend reports success.
+  # Manual visual confirmation on a real desktop: `npm run toast:demo`.
+  toast-linux:
+    name: Live Toast Linux (notify-send → dunst capture)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install notification daemon + tools
+        # fonts-dejavu-core: dunst needs a font to initialise its renderer under xvfb.
+        run: sudo apt-get update && sudo apt-get install -y dunst dbus-x11 xvfb libnotify-bin fonts-dejavu-core
+      - name: Fire a real notification and assert dunst captured it
+        run: xvfb-run -a dbus-run-session -- node scripts/live-toast-linux.mjs
+
+  toast-native:
+    name: Live Toast Native (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      AAN_TOAST_LIVE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install BurntToast (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Install-Module -Name BurntToast -Force -Scope CurrentUser -AllowClobber
+      - name: Fire the real native toast backend and assert success
+        run: node --test tests/platforms.test.mjs

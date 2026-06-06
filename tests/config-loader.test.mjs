@@ -40,6 +40,17 @@ describe('config-loader', () => {
     assert.equal(config.toast.enabled, true);
   });
 
+  it('falls back to defaults when the user config is corrupt JSON', async () => {
+    // A hand-edited broken config must not break notifications — loadConfig
+    // swallows the parse error and returns the full default set.
+    fs.writeFileSync(configPath, '{ ntfy: this is not, valid json ]]');
+    const { loadConfig } = await import('../src/config-loader.mjs');
+    const config = loadConfig(configPath);
+    assert.equal(config.ntfy.server, 'https://ntfy.sh');
+    assert.equal(config.toast.enabled, true);
+    assert.equal(config.events.needs_input.ntfyPriority, 'urgent');
+  });
+
   it('saves config to disk', async () => {
     const { loadConfig, saveConfig } = await import('../src/config-loader.mjs');
     const config = loadConfig(configPath);

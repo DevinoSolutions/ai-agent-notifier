@@ -2,23 +2,14 @@
 // Covers: canonicalJson, codexHookHash, unpatchAll, corrupt configs, idempotency edge cases
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { canonicalJson, codexHookHash } from '../setup/patch-config.mjs';
 
 const tmpDir = path.join(os.tmpdir(), 'patch-advanced-test-' + Date.now());
 
-describe('canonicalJson', () => {
-  // Replicate the function to verify hash stability
-  function canonicalJson(val) {
-    if (val === null || val === undefined) return JSON.stringify(null);
-    if (typeof val !== 'object') return JSON.stringify(val);
-    if (Array.isArray(val)) return '[' + val.map(canonicalJson).join(',') + ']';
-    const sorted = Object.keys(val).sort();
-    return '{' + sorted.map(k => JSON.stringify(k) + ':' + canonicalJson(val[k])).join(',') + '}';
-  }
-
+describe('canonicalJson (real exported function)', () => {
   it('sorts object keys alphabetically', () => {
     const result = canonicalJson({ z: 1, a: 2, m: 3 });
     assert.equal(result, '{"a":2,"m":3,"z":1}');
@@ -52,31 +43,7 @@ describe('canonicalJson', () => {
   });
 });
 
-describe('codexHookHash stability', () => {
-  // The hash must be stable across runs — if it changes, Codex will reject hooks
-  function canonicalJson(val) {
-    if (val === null || val === undefined) return JSON.stringify(null);
-    if (typeof val !== 'object') return JSON.stringify(val);
-    if (Array.isArray(val)) return '[' + val.map(canonicalJson).join(',') + ']';
-    const sorted = Object.keys(val).sort();
-    return '{' + sorted.map(k => JSON.stringify(k) + ':' + canonicalJson(val[k])).join(',') + '}';
-  }
-
-  function codexHookHash(eventName, command, { timeout, matcher, isAsync = false, statusMessage } = {}) {
-    const handler = {
-      async: isAsync,
-      command,
-      timeout: Math.max(1, timeout ?? 600),
-      type: 'command',
-    };
-    if (statusMessage != null) handler.statusMessage = statusMessage;
-    const identity = { event_name: eventName, hooks: [handler] };
-    if (matcher != null) identity.matcher = matcher;
-    const json = canonicalJson(identity);
-    const hash = crypto.createHash('sha256').update(json).digest('hex');
-    return `sha256:${hash}`;
-  }
-
+describe('codexHookHash stability (real exported function)', () => {
   it('produces consistent hash for same inputs', () => {
     const hash1 = codexHookHash('stop', 'node /path/notify.mjs --source codex --event Stop', { timeout: 10, statusMessage: 'Sending notification' });
     const hash2 = codexHookHash('stop', 'node /path/notify.mjs --source codex --event Stop', { timeout: 10, statusMessage: 'Sending notification' });
@@ -352,5 +319,40 @@ describe('Codex config.toml hooks.state idempotency & repair', () => {
     assert.ok(after.includes(`[hooks.state.'${b2[1]}']`));
     assert.ok(after.includes(`trusted_hash = "${b1[2]}"`));
     assert.ok(after.includes(`trusted_hash = "${b2[2]}"`));
+  });
+});
+
+describe('unpatchAll Codex config.toml trust cleanup', () => {
+  beforeEach(() => fs.mkdirSync(tmpDir, { recursive: true }));
+  afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+
+  it('removes our [hooks.state] trust keys but preserves foreign ones', async () => {
+    const { patchCodex, unpatchAll } = await import('../setup/patch-config.mjs');
+    const home = path.join(tmpDir, 'home-unpatch');
+    const codexDir = path.join(home, '.codex');
+    fs.mkdirSync(codexDir, { recursive: true });
+    const notify = '/home/user/.npm/ai-agent-notifier/src/notify.mjs';
+    patchCodex(codexDir, notify);
+
+    const tomlPath = path.join(codexDir, 'config.toml');
+    let toml = fs.readFileSync(tomlPath, 'utf8');
+    assert.match(toml, /trusted_hash/, 'precondition: our trust hashes were written');
+
+    // Seed a foreign trust entry that codex itself (or another tool) could own.
+    toml += `\n[hooks.state.'/other/hooks.json:stop:0:0']\ntrusted_hash = "sha256:deadbeefcafe"\n`;
+    fs.writeFileSync(tomlPath, toml, 'utf8');
+
+    unpatchAll(home);
+
+    const after = fs.readFileSync(tomlPath, 'utf8');
+    // Foreign entry survives verbatim.
+    assert.match(after, /\[hooks\.state\.'\/other\/hooks\.json:stop:0:0'\]/, 'foreign trust entry preserved');
+    assert.match(after, /sha256:deadbeefcafe/, 'foreign hash preserved');
+    // Our entries are gone — session_start is uniquely ours, and only the foreign
+    // trusted_hash should remain.
+    assert.doesNotMatch(after, /:session_start:/, 'our session_start trust key removed');
+    assert.equal((after.match(/trusted_hash/g) || []).length, 1, 'only the foreign trust entry remains');
+    // The [features] hooks flag is intentionally left intact.
+    assert.match(after, /hooks = true/, 'feature flag preserved');
   });
 });

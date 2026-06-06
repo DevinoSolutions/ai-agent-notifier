@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/ci.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://www.npmjs.com/package/ai-agent-notifier"><img src="https://img.shields.io/npm/v/ai-agent-notifier?color=cb3837&label=npm" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/ai-agent-notifier"><img src="https://img.shields.io/npm/dm/ai-agent-notifier?color=blue" alt="npm downloads" /></a>
   <a href="https://github.com/DevinoSolutions/ai-agent-notifier/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0" /></a>
@@ -224,6 +225,17 @@ ai-agent-notifier uninstall
 ```
 
 Removes all managed hooks from every tool's config. Original configs are backed up at `~/.ai-agent-notifier/backups/`.
+
+## Testing
+
+- `npm test` — fast, offline unit + integration suite.
+- `npm run test:e2e` — real-world e2e (requires network): real ntfy.sh delivery,
+  real `notify.mjs` invocation, and a real `setup` subprocess.
+
+CI (`.github/workflows/ci.yml`) runs on Linux, macOS, and Windows: the unit
+suite, the e2e suite, real installs + smoke-load of the agent CLIs, and
+secret-gated live runs of Gemini (free tier) and Claude. The live jobs are
+non-blocking and skip automatically when their API-key secrets are absent.
 
 ## Contributing
 

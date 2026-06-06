@@ -1,89 +1,58 @@
-// tests/notify-unit.test.mjs — Unit tests for notify.mjs internals
+// tests/notify-unit.test.mjs — Unit tests for notify.mjs internals.
+// These import the REAL exported functions (not re-implementations) so the tests
+// fail if production logic diverges. acquireNotifyLock takes a baseDir override
+// so it can run against a temp dir instead of the real home.
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { parseArgs, acquireNotifyLock } from '../src/notify.mjs';
 
-const tmpDir = path.join(os.tmpdir(), 'notify-unit-test-' + Date.now());
-const lockDir = path.join(tmpDir, '.ai-agent-notifier');
+describe('acquireNotifyLock (real exported function)', () => {
+  let base;
+  beforeEach(() => { base = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-lock-')); });
+  afterEach(() => fs.rmSync(base, { recursive: true, force: true }));
 
-describe('acquireNotifyLock', () => {
-  // We can't import acquireNotifyLock directly (not exported), but we can
-  // replicate the logic for unit testing the dedup mechanism.
-  // Instead, test via subprocess to prove the real behavior.
-
-  beforeEach(() => fs.mkdirSync(lockDir, { recursive: true }));
-  afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
-
-  it('first process acquires lock successfully', () => {
-    const lockFile = path.join(lockDir, '.lock-test');
-    // Simulate: exclusive create succeeds when file doesn't exist
-    const fd = fs.openSync(lockFile, 'wx');
-    fs.writeSync(fd, '12345');
-    fs.closeSync(fd);
-    assert.ok(fs.existsSync(lockFile));
-    assert.equal(fs.readFileSync(lockFile, 'utf8'), '12345');
+  it('first acquire for a source succeeds', () => {
+    assert.equal(acquireNotifyLock('claude', base), true);
+    const lock = path.join(base, '.ai-agent-notifier', '.lock-claude');
+    assert.ok(fs.existsSync(lock));
+    assert.equal(fs.readFileSync(lock, 'utf8'), String(process.pid));
   });
 
-  it('second process fails to acquire existing lock', () => {
-    const lockFile = path.join(lockDir, '.lock-test2');
-    // First process creates lock
-    fs.writeFileSync(lockFile, '111');
-    // Second process tries exclusive create — should throw EEXIST
-    assert.throws(() => {
-      fs.openSync(lockFile, 'wx');
-    }, (err) => err.code === 'EEXIST');
+  it('second acquire for the same source fails while the lock is held', () => {
+    assert.equal(acquireNotifyLock('claude', base), true);
+    assert.equal(acquireNotifyLock('claude', base), false);
   });
 
-  it('stale lock (>10s) gets cleaned up', () => {
-    const lockFile = path.join(lockDir, '.lock-stale');
-    fs.writeFileSync(lockFile, '999');
-    // Backdate the file 15 seconds
+  it('different sources get independent locks', () => {
+    assert.equal(acquireNotifyLock('claude', base), true);
+    assert.equal(acquireNotifyLock('codex', base), true);
+  });
+
+  it('cleans a stale lock (>10s old) and re-acquires', () => {
+    assert.equal(acquireNotifyLock('claude', base), true);
+    const lock = path.join(base, '.ai-agent-notifier', '.lock-claude');
     const past = new Date(Date.now() - 15000);
-    fs.utimesSync(lockFile, past, past);
-    // Simulate stale cleanup logic
-    const stat = fs.statSync(lockFile);
-    if (Date.now() - stat.mtimeMs > 10000) {
-      fs.unlinkSync(lockFile);
-    }
-    // Now exclusive create should succeed
-    const fd = fs.openSync(lockFile, 'wx');
-    fs.closeSync(fd);
-    assert.ok(fs.existsSync(lockFile));
+    fs.utimesSync(lock, past, past);
+    assert.equal(acquireNotifyLock('claude', base), true, 'stale lock should be cleaned and re-acquired');
   });
 
-  it('recent lock (<10s) is NOT cleaned up', () => {
-    const lockFile = path.join(lockDir, '.lock-recent');
-    fs.writeFileSync(lockFile, '888');
-    // File was just created, mtime is fresh
-    const stat = fs.statSync(lockFile);
-    const isStale = Date.now() - stat.mtimeMs > 10000;
-    assert.equal(isStale, false);
-    // Exclusive create should still fail
-    assert.throws(() => {
-      fs.openSync(lockFile, 'wx');
-    }, (err) => err.code === 'EEXIST');
+  it('does NOT clean a fresh lock (<10s old)', () => {
+    assert.equal(acquireNotifyLock('claude', base), true);
+    // No backdating — lock is fresh, so the second acquire must fail.
+    assert.equal(acquireNotifyLock('claude', base), false);
+  });
+
+  it('creates the lock directory if it does not exist', () => {
+    const nested = path.join(base, 'does', 'not', 'exist');
+    assert.equal(acquireNotifyLock('gemini', nested), true);
+    assert.ok(fs.existsSync(path.join(nested, '.ai-agent-notifier', '.lock-gemini')));
   });
 });
 
-describe('parseArgs', () => {
-  // Replicate the parseArgs logic for unit testing
-  function parseArgs(argv) {
-    const args = { source: 'claude' };
-    for (let i = 2; i < argv.length; i++) {
-      if (argv[i] === '--source' && argv[i + 1]) {
-        args.source = argv[i + 1];
-        i++;
-      }
-      if (argv[i] === '--event' && argv[i + 1]) {
-        args.event = argv[i + 1];
-        i++;
-      }
-    }
-    return args;
-  }
-
+describe('parseArgs (real exported function)', () => {
   it('defaults source to claude when no args', () => {
     const args = parseArgs(['node', 'notify.mjs']);
     assert.equal(args.source, 'claude');

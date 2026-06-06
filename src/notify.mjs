@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseInput } from './parse-input.mjs';
 import { route } from './router.mjs';
 import { loadConfig } from './config-loader.mjs';
@@ -11,8 +12,8 @@ import { sendNtfy } from './ntfy.mjs';
 // Deduplication: some tools (Cursor) fire the stop hook twice simultaneously.
 // Use exclusive file creation as an atomic lock to ensure only one invocation
 // sends notifications per event.
-function acquireNotifyLock(source) {
-  const dir = path.join(os.homedir(), '.ai-agent-notifier');
+export function acquireNotifyLock(source, baseDir = os.homedir()) {
+  const dir = path.join(baseDir, '.ai-agent-notifier');
   const lockFile = path.join(dir, `.lock-${source}`);
   try { fs.mkdirSync(dir, { recursive: true }); } catch {}
   // Clean up stale locks (>10 seconds old)
@@ -38,7 +39,7 @@ async function getToastBackend() {
   return (await import('./platforms/linux.mjs')).sendToast;
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const args = { source: 'claude' };
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === '--source' && argv[i + 1]) {
@@ -114,4 +115,8 @@ async function main() {
   process.exit(0);
 }
 
-main();
+// Only run main when invoked directly as a hook (node src/notify.mjs ...),
+// not when imported by tests for unit-testing the real exported functions.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

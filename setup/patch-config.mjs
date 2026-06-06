@@ -80,7 +80,7 @@ export function patchClaude(claudeDir, notifyPath, backupDir) {
 // TOML has no null: Option::None fields are OMITTED (not included as null).
 // Serde renames: timeout_sec→"timeout", status_message→"statusMessage",
 //                command_windows→"commandWindows", async stays "async".
-function canonicalJson(val) {
+export function canonicalJson(val) {
   if (val === null || val === undefined) return JSON.stringify(null);
   if (typeof val !== 'object') return JSON.stringify(val);
   if (Array.isArray(val)) return '[' + val.map(canonicalJson).join(',') + ']';
@@ -88,7 +88,7 @@ function canonicalJson(val) {
   return '{' + sorted.map(k => JSON.stringify(k) + ':' + canonicalJson(val[k])).join(',') + '}';
 }
 
-function codexHookHash(eventName, command, { timeout, matcher, isAsync = false, statusMessage } = {}) {
+export function codexHookHash(eventName, command, { timeout, matcher, isAsync = false, statusMessage } = {}) {
   // Build handler with only fields that Codex includes after TOML serialization.
   // Option::None fields are OMITTED (TOML has no null), bool/int always included.
   const handler = {
@@ -293,6 +293,74 @@ export function patchGemini(geminiDir, notifyPath, backupDir) {
   }
 }
 
+// Indices of our managed hooks within an event's hook array (same predicate as
+// removeManagedHooks). Used to reconstruct the codex trust-state keys, which
+// encode each hook's position.
+function ourHookIndices(hooksArray) {
+  if (!Array.isArray(hooksArray)) return [];
+  const idxs = [];
+  hooksArray.forEach((h, i) => {
+    const mine = h._managed_by === MANAGED_TAG ||
+      h.hooks?.some((hh) => isOurHook(hh.command)) ||
+      isOurHook(h.command);
+    if (mine) idxs.push(i);
+  });
+  return idxs;
+}
+
+// Codex derives the trust-state key segment from the event name in snake_case:
+// Stop -> stop, SessionStart -> session_start, PermissionRequest -> permission_request.
+function eventKeySegment(event) {
+  return event.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+}
+
+// Inverse of rebuildHooksState: drop the [hooks.state.'<key>'] blocks whose key
+// is in keysToRemove, preserving every other line (and foreign state entries) in
+// place. When no state entries remain, the [hooks.state] section is removed.
+function stripHooksStateKeys(toml, keysToRemove) {
+  const eol = toml.includes('\r\n') ? '\r\n' : '\n';
+  const lines = toml.split(/\r?\n/);
+  const isHeader = (l) => { const t = l.trim(); return t.startsWith('[') && t.endsWith(']'); };
+  const drop = new Set(keysToRemove);
+
+  const kept = [];
+  const preserved = new Map();
+
+  for (let i = 0; i < lines.length;) {
+    const line = lines[i];
+    if (isHeader(line)) {
+      const inside = line.trim().slice(1, -1);
+      const sub = inside.match(/^hooks\.state\.(?:'(.*)'|"(.*)")$/);
+      if (inside === 'hooks.state' || sub) {
+        let j = i + 1;
+        const body = [];
+        while (j < lines.length && !isHeader(lines[j])) { body.push(lines[j]); j++; }
+        if (sub) {
+          const key = sub[1] ?? sub[2];
+          if (!drop.has(key) && !preserved.has(key)) preserved.set(key, body);
+        }
+        i = j;
+        continue;
+      }
+    }
+    kept.push(line);
+    i++;
+  }
+
+  while (kept.length && kept[kept.length - 1].trim() === '') kept.pop();
+
+  if (preserved.size === 0) {
+    return kept.length ? kept.join(eol) + eol : '';
+  }
+
+  const region = ['[hooks.state]'];
+  for (const [key, body] of preserved) {
+    region.push('', `[hooks.state.'${key}']`);
+    for (const b of body) if (b.trim() !== '') region.push(b);
+  }
+  return kept.join(eol) + eol + eol + region.join(eol) + eol;
+}
+
 export function unpatchAll(homeDir, backupDir) {
   const tools = [
     { dir: '.claude', file: 'settings.json', events: ['Notification', 'Stop'] },
@@ -306,6 +374,18 @@ export function unpatchAll(homeDir, backupDir) {
     const data = readJSON(filePath);
     if (!data?.hooks) continue;
     backup(filePath, backupDir);
+
+    // Capture our codex trust-state keys BEFORE removal — they encode each hook's
+    // array index, which changes once the hook is gone.
+    const codexKeysToRemove = [];
+    if (tool.dir === '.codex') {
+      for (const event of tool.events) {
+        for (const idx of ourHookIndices(data.hooks[event])) {
+          codexKeysToRemove.push(`${filePath}:${eventKeySegment(event)}:${idx}:0`);
+        }
+      }
+    }
+
     for (const event of tool.events) {
       if (data.hooks[event]) {
         data.hooks[event] = removeManagedHooks(data.hooks[event]);
@@ -313,5 +393,18 @@ export function unpatchAll(homeDir, backupDir) {
       }
     }
     writeJSON(filePath, data);
+
+    // Codex keeps hook trust hashes in config.toml [hooks.state]. Remove ours so
+    // no orphaned trust entries linger after uninstall. The [features] hooks flag
+    // is left intact in case the user has other hooks.
+    if (tool.dir === '.codex' && codexKeysToRemove.length) {
+      const tomlPath = path.join(homeDir, tool.dir, 'config.toml');
+      let toml = '';
+      try { toml = fs.readFileSync(tomlPath, 'utf8'); } catch { toml = ''; }
+      if (toml) {
+        backup(tomlPath, backupDir);
+        fs.writeFileSync(tomlPath, stripHooksStateKeys(toml, codexKeysToRemove), 'utf8');
+      }
+    }
   }
 }

@@ -4,7 +4,7 @@ import { getConfigDir } from '../config-loader.mjs';
 import path from 'node:path';
 import fs from 'node:fs';
 
-const URGENCY_MAP = {
+export const URGENCY_MAP = {
   urgent: 'critical',
   high: 'normal',
   default: 'low',
