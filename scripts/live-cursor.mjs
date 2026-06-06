@@ -17,10 +17,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const NOTIFY = path.resolve(__dirname, '..', 'src', 'notify.mjs');
 
 async function main() {
-  if (!process.env.CURSOR_API_KEY) {
-    console.error('FAIL: CURSOR_API_KEY is not set — live Cursor E2E requires a real key.');
+  // Cursor supports BYO API keys (OpenAI, Anthropic, etc.) in addition to its
+  // own subscription key. We accept any of the three so CI doesn't need a
+  // separate cursor.com account — just reuse whichever key is already present.
+  const cursorKey = process.env.CURSOR_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY;
+  if (!cursorKey) {
+    console.error('FAIL: no API key found — set CURSOR_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY.');
     process.exit(1);
   }
+  console.log('PASS (hard): API key present for Cursor BYO mode');
 
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-live-cursor-'));
   fs.mkdirSync(path.join(home, '.cursor'), { recursive: true });

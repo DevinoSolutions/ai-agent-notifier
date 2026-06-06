@@ -123,7 +123,9 @@ jobs:
     name: Live Cursor E2E (required)
     runs-on: ubuntu-latest
     env:
-      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+      # Cursor supports BYO API keys — reuse OPENAI_API_KEY (already required
+      # by live-codex) so no separate cursor.com account is needed in CI.
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
