@@ -22,7 +22,9 @@ async function main() {
     process.exit(1);
   }
 
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-live-codex-'));
+  // Codex refuses to create helper binaries under /tmp; use the real home dir
+  // as the base so the temp path is e.g. /home/runner/aan-live-codex-XXXXX.
+  const home = fs.mkdtempSync(path.join(os.homedir(), 'aan-live-codex-'));
   fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
   const topic = randomTopic('live-codex');
   writeUserConfig(home, { toast: { enabled: false }, ntfy: { enabled: true, server: 'https://ntfy.sh', topic } });
