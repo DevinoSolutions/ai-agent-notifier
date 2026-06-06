@@ -30,7 +30,9 @@ async function main() {
   writeUserConfig(home, { toast: { enabled: false }, ntfy: { enabled: true, server: 'https://ntfy.sh', topic } });
   patchGemini(path.join(home, '.gemini'), NOTIFY);
 
-  const env = { ...process.env, HOME: home, USERPROFILE: home };
+  // GEMINI_CLI_TRUST_WORKSPACE=true is required for headless/CI runs;
+  // without it gemini exits 55 ("not running in a trusted directory").
+  const env = { ...process.env, HOME: home, USERPROFILE: home, GEMINI_CLI_TRUST_WORKSPACE: 'true' };
   // Non-interactive prompt. If this flag is wrong for the installed version,
   // the hard assertion below will catch it and we adjust.
   const res = spawnSync('gemini', ['-p', 'Reply with the single word OK.'], {

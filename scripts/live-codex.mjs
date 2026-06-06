@@ -30,11 +30,10 @@ async function main() {
 
   const env = { ...process.env, HOME: home, USERPROFILE: home, CODEX_DISABLE_SANDBOX: '1' };
 
-  // Codex exec mode: non-interactive, runs the task and exits.
-  // --full-auto skips confirmation prompts so CI doesn't hang.
+  // `codex exec` is the non-interactive subcommand (no TUI, exits when done).
   const res = spawnSync(
     'codex',
-    ['--full-auto', '--model', 'gpt-4o-mini', 'Reply with the single word OK.'],
+    ['exec', '--model', 'gpt-4o-mini', 'Reply with the single word OK.'],
     { encoding: 'utf8', env, timeout: 120000 },
   );
   console.log('codex exit:', res.status);
