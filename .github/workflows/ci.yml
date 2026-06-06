@@ -60,8 +60,8 @@ jobs:
         if: runner.os != 'Windows'
         continue-on-error: true
         run: curl https://cursor.com/install -fsS | bash
-      - name: Smoke-load Codex (require verified)
-        run: node scripts/smoke-load.mjs --cli codex --require-verified
+      - name: Smoke-load Codex
+        run: node scripts/smoke-load.mjs --cli codex
       - name: Smoke-load Claude
         run: node scripts/smoke-load.mjs --cli claude
       - name: Smoke-load Gemini

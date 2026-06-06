@@ -1,5 +1,4 @@
 // src/parse-input.mjs
-import path from 'node:path';
 
 const EVENT_MAP = {
   claude: {
@@ -35,7 +34,7 @@ export function parseInput(raw, source, eventOverride) {
     source,
     event: map[hookEvent] || 'unknown',
     cwd,
-    projectName: cwd ? path.basename(cwd) : '',
+    projectName: cwd ? (cwd.split(/[\\/]/).filter(Boolean).pop() || '') : '',
     sessionId: raw.session_id || raw.sessionId || '',
     rawEvent: hookEvent,
     raw,
