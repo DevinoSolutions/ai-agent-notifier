@@ -108,7 +108,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      CODEX_DISABLE_SANDBOX: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

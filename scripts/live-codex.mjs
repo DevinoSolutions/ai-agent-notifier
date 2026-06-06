@@ -28,13 +28,26 @@ async function main() {
   writeUserConfig(home, { toast: { enabled: false }, ntfy: { enabled: true, server: 'https://ntfy.sh', topic } });
   patchCodex(path.join(home, '.codex'), NOTIFY);
 
-  const env = { ...process.env, HOME: home, USERPROFILE: home, CODEX_DISABLE_SANDBOX: '1' };
+  const env = { ...process.env, HOME: home, USERPROFILE: home };
 
   // `codex exec` is the non-interactive subcommand (no TUI, exits when done).
+  // --dangerously-bypass-approvals-and-sandbox: skips all confirm prompts and
+  //   sandbox restrictions; appropriate because GitHub Actions is already
+  //   sandboxed at the runner level.
+  // --ephemeral: don't persist session files to disk.
+  // --dangerously-bypass-hook-trust: skip trust verification for patched hooks.
+  // input: '' ensures stdin is empty so exec doesn't hang waiting for input.
   const res = spawnSync(
     'codex',
-    ['exec', '--model', 'gpt-4o-mini', 'Reply with the single word OK.'],
-    { encoding: 'utf8', env, timeout: 120000 },
+    [
+      'exec',
+      '--model', 'gpt-4o-mini',
+      '--dangerously-bypass-approvals-and-sandbox',
+      '--dangerously-bypass-hook-trust',
+      '--ephemeral',
+      'Reply with the single word OK.',
+    ],
+    { encoding: 'utf8', env, timeout: 120000, input: '' },
   );
   console.log('codex exit:', res.status);
   console.log('codex stdout:', (res.stdout || '').slice(0, 500));
