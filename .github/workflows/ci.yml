@@ -108,9 +108,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      # codex exec uses the Responses API WebSocket which requires Tier 1+.
-      # For the actual exec round-trip we use Anthropic (REST, always works).
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
