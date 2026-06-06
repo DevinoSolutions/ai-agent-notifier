@@ -6,6 +6,7 @@ const defaultConfig = {
   events: {
     task_complete: { sound: 'IM', ntfyPriority: 'default', ntfyTags: 'white_check_mark' },
     needs_input: { sound: 'Reminder', ntfyPriority: 'urgent', ntfyTags: 'bell,warning' },
+    session_start: { sound: 'Default', ntfyPriority: 'low', ntfyTags: 'rocket' },
   },
   sources: {
     claude: { label: 'Claude Code' },
@@ -31,6 +32,15 @@ describe('route', () => {
     assert.equal(notif.message, 'backend: Needs your input');
     assert.equal(notif.sound, 'Reminder');
     assert.equal(notif.ntfyPriority, 'urgent');
+  });
+
+  it('routes session_start with low priority and rocket tag', () => {
+    const event = { source: 'claude', event: 'session_start', projectName: 'app' };
+    const notif = route(event, defaultConfig);
+    assert.equal(notif.title, 'Claude Code');
+    assert.equal(notif.message, 'app: Session started');
+    assert.equal(notif.ntfyPriority, 'low');
+    assert.equal(notif.ntfyTags, 'rocket');
   });
 
   it('uses source name as title fallback for unknown sources', () => {

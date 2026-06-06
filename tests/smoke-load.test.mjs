@@ -6,16 +6,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { hasConfigError, classifySmoke } from '../scripts/smoke-load.mjs';
+import { hasConfigError, classifySmoke, PATTERNS } from '../scripts/smoke-load.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FAKE = path.join(__dirname, 'fixtures', 'fake-cli.mjs');
-const PATTERNS = ['failed to parse', 'duplicate key', 'invalid config', 'syntax error'];
 
 describe('hasConfigError', () => {
   it('matches known config-error patterns case-insensitively', () => {
     assert.equal(hasConfigError('Error: Failed To Parse config', PATTERNS), true);
     assert.equal(hasConfigError('fake-cli 1.0.0', PATTERNS), false);
+  });
+
+  it('detects every production parse-error pattern (no silent gaps)', () => {
+    // Guards against the real PATTERNS list drifting from what the tests exercise.
+    assert.equal(PATTERNS.length, 7);
+    for (const p of PATTERNS) {
+      assert.equal(hasConfigError(`some output: ${p.toUpperCase()} happened`, PATTERNS), true, `pattern not matched: ${p}`);
+    }
   });
 });
 

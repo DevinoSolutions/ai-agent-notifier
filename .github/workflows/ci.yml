@@ -60,8 +60,8 @@ jobs:
         if: runner.os != 'Windows'
         continue-on-error: true
         run: curl https://cursor.com/install -fsS | bash
-      - name: Smoke-load Codex
-        run: node scripts/smoke-load.mjs --cli codex
+      - name: Smoke-load Codex (pinned classification — fails on drift)
+        run: node scripts/smoke-load.mjs --cli codex --expect launch-only
       - name: Smoke-load Claude
         run: node scripts/smoke-load.mjs --cli claude
       - name: Smoke-load Gemini
@@ -69,10 +69,13 @@ jobs:
       - name: Smoke-load Cursor (skips if absent)
         run: node scripts/smoke-load.mjs --cli cursor
 
+  # Live jobs are REQUIRED (no continue-on-error) and run unconditionally: the
+  # script hard-fails if its key is missing, so a deleted/renamed secret — or a
+  # fork PR without secret access — turns the build red instead of skipping
+  # silently. Configure GEMINI_API_KEY / ANTHROPIC_API_KEY as repo secrets.
   live-gemini:
-    name: Live Gemini E2E (free tier)
+    name: Live Gemini E2E (required)
     runs-on: ubuntu-latest
-    continue-on-error: true
     env:
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
     steps:
@@ -82,14 +85,12 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm install -g @google/gemini-cli
-      - name: Drive Gemini end-to-end
-        if: ${{ env.GEMINI_API_KEY != '' }}
+      - name: Drive Gemini end-to-end (hard-fails if key missing or hook silent)
         run: node scripts/live-gemini.mjs
 
   live-claude:
-    name: Live Claude E2E (optional, paid)
+    name: Live Claude E2E (required, paid)
     runs-on: ubuntu-latest
-    continue-on-error: true
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
@@ -99,6 +100,5 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm install -g @anthropic-ai/claude-code
-      - name: Drive Claude end-to-end
-        if: ${{ env.ANTHROPIC_API_KEY != '' }}
+      - name: Drive Claude end-to-end (hard-fails if key missing or hook silent)
         run: node scripts/live-claude.mjs

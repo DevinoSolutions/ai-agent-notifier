@@ -12,6 +12,6 @@ export function sendToast(notification) {
   });
 }
 
-function esc(str) {
+export function esc(str) {
   return (str || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }

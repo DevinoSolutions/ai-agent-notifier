@@ -34,7 +34,7 @@ export function classifySmoke(positive, negative, patterns) {
 // non-zero exit; these patterns are a backup for CLIs that print an error but exit 0.
 // Avoid bare 'unexpected' — it can appear in a CLI's normal --version/telemetry output
 // and would spuriously fail the positive run (esp. the blocking codex --require-verified).
-const PATTERNS = ['failed to parse', 'could not parse', 'duplicate key', 'invalid config', 'syntax error', 'unexpected token', 'unexpected character'];
+export const PATTERNS = ['failed to parse', 'could not parse', 'duplicate key', 'invalid config', 'syntax error', 'unexpected token', 'unexpected character'];
 
 const CLIS = {
   claude: { bin: 'claude', args: ['--version'], dir: '.claude', patch: patchClaude,
@@ -52,8 +52,19 @@ function freshHome() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'aan-smoke-'));
 }
 
+// Env vars that could let a real API key change CLI behavior and mask a config
+// problem. The smoke test only checks config parsing, so scrub them for a
+// hermetic, reproducible run that depends solely on the patched config.
+const SCRUB_ENV = [
+  'ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN',
+  'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_GENAI_API_KEY', 'GOOGLE_CLOUD_PROJECT',
+  'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'CURSOR_API_KEY',
+  'NTFY_TOKEN', 'NTFY_PASSWORD',
+];
+
 function runCli(spec, home) {
   const env = { ...process.env, HOME: home, USERPROFILE: home };
+  for (const k of SCRUB_ENV) delete env[k];
   const res = spawnSync(spec.bin, spec.args, { encoding: 'utf8', env, timeout: 60000 });
   return res; // res.error set (ENOENT) if the binary is missing
 }
@@ -62,6 +73,12 @@ function main() {
   const argv = process.argv.slice(2);
   const cli = argv[argv.indexOf('--cli') + 1];
   const requireVerified = argv.includes('--require-verified');
+  // --expect <verified|launch-only|fail> pins the classification. If the actual
+  // verdict drifts from the expectation (e.g. a CLI stops parsing config, or
+  // starts), CI fails — turning the computed-but-ignored negative control into a
+  // real, enforced signal.
+  const expectIdx = argv.indexOf('--expect');
+  const expect = expectIdx !== -1 ? argv[expectIdx + 1] : null;
   const spec = CLIS[cli];
   if (!spec) { console.error(`Unknown --cli "${cli}"`); process.exit(2); }
 
@@ -94,7 +111,11 @@ function main() {
   fs.rmSync(posHome, { recursive: true, force: true });
   fs.rmSync(negHome, { recursive: true, force: true });
 
-  if (verdict === 'fail') process.exit(1);
+  if (verdict === 'fail' && expect !== 'fail') process.exit(1);
+  if (expect && verdict !== expect) {
+    console.error(`  expected '${expect}' for ${cli} but got '${verdict}'`);
+    process.exit(1);
+  }
   if (requireVerified && verdict !== 'verified') {
     console.error(`  expected 'verified' for ${cli} but got '${verdict}'`);
     process.exit(1);
