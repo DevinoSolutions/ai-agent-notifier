@@ -143,3 +143,47 @@ jobs:
       - run: npm install
       - name: Validate Cursor config patching (hard-fails if key missing)
         run: node scripts/live-cursor.mjs
+
+  # Real native desktop-notification coverage. Headless CI can't prove a human
+  # SAW a toast, but these go as far as automation allows:
+  #   - toast-linux fires through the real notify-send backend into a real
+  #     notification daemon (dunst) and asserts the captured title+body.
+  #   - toast-native fires the real osascript / BurntToast backend on macOS +
+  #     Windows and asserts the backend reports success.
+  # Manual visual confirmation on a real desktop: `npm run toast:demo`.
+  toast-linux:
+    name: Live Toast Linux (notify-send → dunst capture)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install notification daemon + tools
+        # fonts-dejavu-core: dunst needs a font to initialise its renderer under xvfb.
+        run: sudo apt-get update && sudo apt-get install -y dunst dbus-x11 xvfb libnotify-bin fonts-dejavu-core
+      - name: Fire a real notification and assert dunst captured it
+        run: xvfb-run -a dbus-run-session -- node scripts/live-toast-linux.mjs
+
+  toast-native:
+    name: Live Toast Native (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      AAN_TOAST_LIVE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install BurntToast (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Install-Module -Name BurntToast -Force -Scope CurrentUser -AllowClobber
+      - name: Fire the real native toast backend and assert success
+        run: node --test tests/platforms.test.mjs

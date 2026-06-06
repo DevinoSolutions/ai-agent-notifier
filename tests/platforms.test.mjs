@@ -64,3 +64,32 @@ describe('toast backends fail gracefully (return false, never throw)', () => {
     assert.equal(r, false);
   });
 });
+
+// Native success path: actually FIRE a notification on the host OS and assert
+// the backend reports success. Gated behind AAN_TOAST_LIVE=1 so a normal local
+// `npm test` never pops a toast in the developer's face; CI's toast-native job
+// sets the flag on macOS + Windows runners. Linux's notify-send needs a running
+// daemon (none on a bare runner), so its real-delivery proof lives in the
+// separate scripts/live-toast-linux.mjs job which spins up dunst.
+describe('native toast fires on its own OS (live — set AAN_TOAST_LIVE=1)', () => {
+  const LIVE = process.env.AAN_TOAST_LIVE === '1';
+
+  it('macOS osascript notification resolves true', async (t) => {
+    if (!LIVE) return t.skip('set AAN_TOAST_LIVE=1 to fire a real notification');
+    if (platform !== 'darwin') return t.skip('not macOS');
+    const { sendToast } = await import('../src/platforms/macos.mjs');
+    const r = await sendToast({ title: 'AAN CI', message: 'macOS native toast test', sound: 'default' });
+    assert.equal(r, true);
+  });
+
+  it('Windows toast.ps1 resolves true', async (t) => {
+    if (!LIVE) return t.skip('set AAN_TOAST_LIVE=1 to fire a real notification');
+    if (platform !== 'win32') return t.skip('not Windows');
+    const { sendToast } = await import('../src/platforms/windows.mjs');
+    const r = await sendToast({
+      title: 'AAN CI', message: 'Windows native toast test', sound: 'Default',
+      projectName: 'aan', cwd: process.cwd(), source: 'claude',
+    });
+    assert.equal(r, true);
+  });
+});
