@@ -102,3 +102,33 @@ jobs:
       - run: npm install -g @anthropic-ai/claude-code
       - name: Drive Claude end-to-end (hard-fails if key missing or hook silent)
         run: node scripts/live-claude.mjs
+
+  live-codex:
+    name: Live Codex E2E (required)
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      CODEX_DISABLE_SANDBOX: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm install -g @openai/codex
+      - name: Drive Codex end-to-end (hard-fails if key missing)
+        run: node scripts/live-codex.mjs
+
+  live-cursor:
+    name: Live Cursor E2E (required)
+    runs-on: ubuntu-latest
+    env:
+      CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Validate Cursor config patching (hard-fails if key missing)
+        run: node scripts/live-cursor.mjs
