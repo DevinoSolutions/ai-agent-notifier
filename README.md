@@ -250,8 +250,8 @@ Everything below is verified against the **real thing** — no mocks, no stubs, 
 
 ```bash
 npm test            # offline: 117 unit + integration tests
-npm run test:e2e    # real ntfy.sh round-trip + subprocesses, needs network
-npm run toast:demo  # fire real desktop toasts for every agent/event
+npm run test:e2e    # real ntfy.sh round-trip, needs network
+npm run toast:demo  # fire real desktop toasts, every event
 ```
 
 ### The one thing CI can't prove
