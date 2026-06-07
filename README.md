@@ -249,9 +249,9 @@ Everything below is verified against the **real thing** — no mocks, no stubs, 
 ### Run it yourself
 
 ```bash
-npm test            # fast, offline: 117 unit + integration tests
-npm run test:e2e    # real-world: real ntfy.sh delivery + real hook & setup subprocesses (needs network)
-npm run toast:demo  # fire real desktop toasts for every agent/event on your own machine
+npm test            # offline: 117 unit + integration tests
+npm run test:e2e    # real ntfy.sh round-trip + subprocesses, needs network
+npm run toast:demo  # fire real desktop toasts for every agent/event
 ```
 
 ### The one thing CI can't prove
