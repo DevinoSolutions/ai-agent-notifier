@@ -228,14 +228,35 @@ Removes all managed hooks from every tool's config. Original configs are backed 
 
 ## Testing
 
-- `npm test` — fast, offline unit + integration suite.
-- `npm run test:e2e` — real-world e2e (requires network): real ntfy.sh delivery,
-  real `notify.mjs` invocation, and a real `setup` subprocess.
+Everything below is verified against the **real thing** — no mocks, no stubs, no fakes. Real ntfy.sh push delivery, a real Linux notification daemon receiving the exact payload, the real agent CLIs installed from npm and driven end to end, and the real native OS toast backends actually firing. Every job is **required** and **hard-fails**: a broken key, a renamed secret, or a hook that doesn't deliver turns CI red instead of skipping silently.
 
-CI (`.github/workflows/ci.yml`) runs on Linux, macOS, and Windows: the unit
-suite, the e2e suite, real installs + smoke-load of the agent CLIs, and
-secret-gated live runs of Gemini (free tier) and Claude. The live jobs are
-non-blocking and skip automatically when their API-key secrets are absent.
+### What CI verifies on every run — all real, all platforms
+
+| Job | Platforms | What is actually exercised (no mocks) |
+|-----|-----------|----------------------------------------|
+| **Unit** | Linux · macOS · Windows | 117 unit + integration tests against the real exported code (not inline copies) |
+| **E2E real-world** | Linux · macOS · Windows | Real `setup`/`uninstall` subprocesses against an isolated HOME · real `notify.mjs` hook invocation per source · **real ntfy.sh round-trip** (push sent, then read back off the server) |
+| **Install + smoke-load** | Linux · macOS · Windows | Installs the **real** Claude, Codex, Gemini (and Cursor where available) CLIs from npm, asserts they launch, and smoke-loads each hook (Codex classification pinned — drift fails CI) |
+| **Live Claude** | Linux | Drives the **real** Claude CLI end to end (paid); hard-fails if the hook doesn't deliver a notification |
+| **Live Gemini** | Linux | Drives the **real** Gemini CLI end to end; hard-fails if the hook doesn't deliver a notification |
+| **Live Codex** | Linux | Validates `OPENAI_API_KEY` against the **live OpenAI API** + the real Codex config-patch wiring ¹ |
+| **Live Cursor** | Linux | Validates the real Cursor config-patch wiring (BYO key) ¹ |
+| **Live Toast Linux** | Linux | Fires through the real `notify-send` backend into a **real `dunst` daemon**, then reads its history and asserts it captured the exact title + body |
+| **Live Toast Native** | macOS · Windows | Fires the **real** `osascript` / BurntToast backend and asserts the OS accepted the toast |
+
+¹ Codex and Cursor don't round-trip a prompt through their API in CI — `codex exec` needs OpenAI Tier 1+ WebSocket access, and Cursor is a GUI editor. Their hook **delivery** is fully covered by the unit + e2e suites; these jobs verify the live key and the real config wiring.
+
+### Run it yourself
+
+```bash
+npm test            # fast, offline: 117 unit + integration tests
+npm run test:e2e    # real-world: real ntfy.sh delivery + real hook & setup subprocesses (needs network)
+npm run toast:demo  # fire real desktop toasts for every agent/event on your own machine
+```
+
+### The one thing CI can't prove
+
+Headless CI has no display or login session, so it verifies **delivery** (a real daemon received the payload) and **backend success** (the OS accepted the call) — but it cannot prove a human visually *sees* a banner appear. macOS and Windows also silently suppress toasts under Do Not Disturb / Focus or denied notification permission, returning success either way. To confirm with your own eyes on your own machine, run `npm run toast:demo` and watch them pop.
 
 ## Contributing
 
