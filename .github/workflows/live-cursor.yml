@@ -1,0 +1,23 @@
+name: Live Cursor
+
+# Required (no continue-on-error) and runs unconditionally: the script hard-fails
+# if the key is missing. Cursor supports BYO API keys — reuse OPENAI_API_KEY
+# (already required by Live Codex) so no separate cursor.com account is needed.
+on:
+  push:
+  pull_request:
+
+jobs:
+  live-cursor:
+    name: Live Cursor E2E (required)
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Validate Cursor config patching (hard-fails if key missing)
+        run: node scripts/live-cursor.mjs

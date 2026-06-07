@@ -1,0 +1,31 @@
+name: Toast Native
+
+# Real native desktop-notification coverage on macOS + Windows: fires the real
+# osascript / BurntToast backend and asserts the OS accepted the toast. Headless
+# CI can't prove a human SAW it — see `npm run toast:demo`.
+on:
+  push:
+  pull_request:
+
+jobs:
+  toast-native:
+    name: Live Toast Native (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      AAN_TOAST_LIVE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install BurntToast (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Install-Module -Name BurntToast -Force -Scope CurrentUser -AllowClobber
+      - name: Fire the real native toast backend and assert success
+        run: node --test tests/platforms.test.mjs

@@ -1,0 +1,24 @@
+name: Toast Linux
+
+# Real native desktop-notification coverage: fires through the real notify-send
+# backend into a real notification daemon (dunst) and asserts the captured
+# title + body. Headless CI can't prove a human SAW it — see `npm run toast:demo`.
+on:
+  push:
+  pull_request:
+
+jobs:
+  toast-linux:
+    name: Live Toast Linux (notify-send → dunst capture)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install notification daemon + tools
+        # fonts-dejavu-core: dunst needs a font to initialise its renderer under xvfb.
+        run: sudo apt-get update && sudo apt-get install -y dunst dbus-x11 xvfb libnotify-bin fonts-dejavu-core
+      - name: Fire a real notification and assert dunst captured it
+        run: xvfb-run -a dbus-run-session -- node scripts/live-toast-linux.mjs

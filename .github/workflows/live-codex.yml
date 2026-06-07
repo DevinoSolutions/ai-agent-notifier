@@ -1,0 +1,35 @@
+name: Live Codex
+
+# Required (no continue-on-error) and runs unconditionally: the script hard-fails
+# if OPENAI_API_KEY is missing. codex exec needs OpenAI Tier 1+ WebSocket access,
+# so this job validates the live key + the real config-patch wiring instead of an
+# API round-trip.
+on:
+  push:
+  pull_request:
+
+jobs:
+  live-codex:
+    name: Live Codex E2E (required)
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm install -g @openai/codex
+      - name: Verify OPENAI_API_KEY reaches OpenAI API
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            https://api.openai.com/v1/models/gpt-4o-mini)
+          echo "OpenAI API status for gpt-4o-mini: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "FAIL: OpenAI API returned $STATUS — key invalid or model inaccessible"
+            exit 1
+          fi
+      - name: Drive Codex end-to-end (hard-fails if key missing)
+        run: node scripts/live-codex.mjs

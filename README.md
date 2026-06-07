@@ -14,7 +14,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/ci.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://www.npmjs.com/package/ai-agent-notifier"><img src="https://img.shields.io/npm/v/ai-agent-notifier?color=cb3837&label=npm" alt="npm version" /></a>
   <a href="https://www.npmjs.com/package/ai-agent-notifier"><img src="https://img.shields.io/npm/dm/ai-agent-notifier?color=blue" alt="npm downloads" /></a>
   <a href="https://github.com/DevinoSolutions/ai-agent-notifier/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0" /></a>
@@ -232,17 +231,19 @@ Everything below is verified against the **real thing** — no mocks, no stubs, 
 
 ### What CI verifies on every run — all real, all platforms
 
-| Job | Platforms | What is actually exercised (no mocks) |
-|-----|-----------|----------------------------------------|
-| **Unit** | Linux · macOS · Windows | 117 unit + integration tests against the real exported code (not inline copies) |
-| **E2E real-world** | Linux · macOS · Windows | Real `setup`/`uninstall` subprocesses against an isolated HOME · real `notify.mjs` hook invocation per source · **real ntfy.sh round-trip** (push sent, then read back off the server) |
-| **Install + smoke-load** | Linux · macOS · Windows | Installs the **real** Claude, Codex, Gemini (and Cursor where available) CLIs from npm, asserts they launch, and smoke-loads each hook (Codex classification pinned — drift fails CI) |
-| **Live Claude** | Linux | Drives the **real** Claude CLI end to end (paid); hard-fails if the hook doesn't deliver a notification |
-| **Live Gemini** | Linux | Drives the **real** Gemini CLI end to end; hard-fails if the hook doesn't deliver a notification |
-| **Live Codex** | Linux | Validates `OPENAI_API_KEY` against the **live OpenAI API** + the real Codex config-patch wiring ¹ |
-| **Live Cursor** | Linux | Validates the real Cursor config-patch wiring (BYO key) ¹ |
-| **Live Toast Linux** | Linux | Fires through the real `notify-send` backend into a **real `dunst` daemon**, then reads its history and asserts it captured the exact title + body |
-| **Live Toast Native** | macOS · Windows | Fires the **real** `osascript` / BurntToast backend and asserts the OS accepted the toast |
+Each job runs as its own GitHub Actions workflow. The badge in every row is its **live status on `main`** — not a screenshot — so click any badge to see the actual run and its per-test logs.
+
+| Job | Live status | Platforms | What is actually exercised (no mocks) |
+|-----|:-----------:|-----------|----------------------------------------|
+| **Unit** | [![Unit](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/unit.yml/badge.svg?branch=main)](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/unit.yml) | Linux · macOS · Windows | 117 unit + integration tests against the real exported code (not inline copies) |
+| **E2E real-world** | [![E2E](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/e2e.yml) | Linux · macOS · Windows | Real `setup`/`uninstall` subprocesses against an isolated HOME · real `notify.mjs` hook invocation per source · **real ntfy.sh round-trip** (push sent, then read back off the server) |
+| **Install + smoke-load** | [![Agents](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/agents.yml/badge.svg?branch=main)](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/agents.yml) | Linux · macOS · Windows | Installs the **real** Claude, Codex, Gemini (and Cursor where available) CLIs from npm, asserts they launch, and smoke-loads each hook (Codex classification pinned — drift fails CI) |
+| **Live Claude** | [![Live Claude](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-claude.yml/badge.svg?branch=main)](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-claude.yml) | Linux | Drives the **real** Claude CLI end to end (paid); hard-fails if the hook doesn't deliver a notification |
+| **Live Gemini** | [![Live Gemini](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-gemini.yml/badge.svg?branch=main)](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-gemini.yml) | Linux | Drives the **real** Gemini CLI end to end; hard-fails if the hook doesn't deliver a notification |
+| **Live Codex** | [![Live Codex](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-codex.yml/badge.svg?branch=main)](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-codex.yml) | Linux | Validates `OPENAI_API_KEY` against the **live OpenAI API** + the real Codex config-patch wiring ¹ |
+| **Live Cursor** | [![Live Cursor](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-cursor.yml/badge.svg?branch=main)](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-cursor.yml) | Linux | Validates the real Cursor config-patch wiring (BYO key) ¹ |
+| **Live Toast Linux** | [![Toast Linux](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-linux.yml/badge.svg?branch=main)](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-linux.yml) | Linux | Fires through the real `notify-send` backend into a **real `dunst` daemon**, then reads its history and asserts it captured the exact title + body |
+| **Live Toast Native** | [![Toast Native](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-native.yml/badge.svg?branch=main)](https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-native.yml) | macOS · Windows | Fires the **real** `osascript` / BurntToast backend and asserts the OS accepted the toast |
 
 ¹ Codex and Cursor don't round-trip a prompt through their API in CI — `codex exec` needs OpenAI Tier 1+ WebSocket access, and Cursor is a GUI editor. Their hook **delivery** is fully covered by the unit + e2e suites; these jobs verify the live key and the real config wiring.
 

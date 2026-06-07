@@ -1,0 +1,39 @@
+name: Agents
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  agents:
+    name: Install + smoke-load CLIs (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install agent CLIs (npm)
+        run: npm install -g @anthropic-ai/claude-code @google/gemini-cli @openai/codex
+      - name: Assert CLIs run
+        run: |
+          claude --version
+          gemini --version
+          codex --version
+      - name: Install cursor-agent (best-effort, non-Windows)
+        if: runner.os != 'Windows'
+        continue-on-error: true
+        run: curl https://cursor.com/install -fsS | bash
+      - name: Smoke-load Codex (pinned classification — fails on drift)
+        run: node scripts/smoke-load.mjs --cli codex --expect launch-only
+      - name: Smoke-load Claude
+        run: node scripts/smoke-load.mjs --cli claude
+      - name: Smoke-load Gemini
+        run: node scripts/smoke-load.mjs --cli gemini
+      - name: Smoke-load Cursor (skips if absent)
+        run: node scripts/smoke-load.mjs --cli cursor

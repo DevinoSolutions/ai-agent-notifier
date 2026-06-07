@@ -1,0 +1,24 @@
+name: Live Claude
+
+# Required (no continue-on-error) and runs unconditionally: the script hard-fails
+# if ANTHROPIC_API_KEY is missing, so a deleted/renamed secret — or a fork PR
+# without secret access — turns the build red instead of skipping silently.
+on:
+  push:
+  pull_request:
+
+jobs:
+  live-claude:
+    name: Live Claude E2E (required, paid)
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: Drive Claude end-to-end (hard-fails if key missing or hook silent)
+        run: node scripts/live-claude.mjs

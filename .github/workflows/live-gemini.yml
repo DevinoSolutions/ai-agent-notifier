@@ -1,0 +1,24 @@
+name: Live Gemini
+
+# Required (no continue-on-error) and runs unconditionally: the script hard-fails
+# if GEMINI_API_KEY is missing, so a deleted/renamed secret — or a fork PR without
+# secret access — turns the build red instead of skipping silently.
+on:
+  push:
+  pull_request:
+
+jobs:
+  live-gemini:
+    name: Live Gemini E2E (required)
+    runs-on: ubuntu-latest
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm install -g @google/gemini-cli
+      - name: Drive Gemini end-to-end (hard-fails if key missing or hook silent)
+        run: node scripts/live-gemini.mjs
