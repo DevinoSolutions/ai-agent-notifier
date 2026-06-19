@@ -8,6 +8,7 @@ import { parseInput } from './parse-input.mjs';
 import { route } from './router.mjs';
 import { loadConfig } from './config-loader.mjs';
 import { sendNtfy } from './ntfy.mjs';
+import { sendBell } from './bell.mjs';
 
 // Deduplication: some tools (Cursor) fire the stop hook twice simultaneously.
 // Use exclusive file creation as an atomic lock to ensure only one invocation
@@ -103,6 +104,11 @@ async function main() {
     // ntfy
     if (config.ntfy?.enabled && config.ntfy?.topic && eventConfig.ntfyEnabled !== false) {
       tasks.push(sendNtfy(config.ntfy, notification));
+    }
+
+    // Terminal bell
+    if (config.terminalBell?.enabled !== false && eventConfig.terminalBellEnabled !== false) {
+      tasks.push(sendBell());
     }
 
     await Promise.allSettled(tasks);
