@@ -46,15 +46,15 @@ describe('sendBellUnix — Unix-only', () => {
 
   it('writes BEL to /dev/tty when a controlling terminal exists', async (t) => {
     if (platform === 'win32') return t.skip('not Unix');
-    // In an interactive terminal, /dev/tty is available.
-    // In CI without a tty, sendBellUnix returns false — that's the no-tty path.
     const result = await sendBellUnix();
     assert.equal(typeof result, 'boolean');
 
-    // If /dev/tty exists, we expect true; if not, false.
-    let hasTty = false;
-    try { fs.accessSync('/dev/tty', fs.constants.W_OK); hasTty = true; } catch {}
-    assert.equal(result, hasTty, `/dev/tty ${hasTty ? 'exists' : 'missing'} but sendBellUnix returned ${result}`);
+    // Verify consistency: try opening /dev/tty the same way the production
+    // code does. accessSync(W_OK) can report writable even when openSync
+    // throws (headless CI runners have the device node but no real terminal).
+    let canOpen = false;
+    try { const fd = fs.openSync('/dev/tty', 'w'); fs.closeSync(fd); canOpen = true; } catch {}
+    assert.equal(result, canOpen, `/dev/tty open ${canOpen ? 'succeeded' : 'failed'} but sendBellUnix returned ${result}`);
   });
 
   it('returns false when both /dev/tty and tmux are unavailable', async (t) => {
