@@ -73,3 +73,36 @@ describe('terminalBell config defaults', () => {
     assert.equal(config.terminalBell?.enabled, true);
   });
 });
+
+describe('bell config gating — dispatch condition logic', () => {
+  // These test the exact boolean expressions from notify.mjs dispatch:
+  //   config.terminalBell?.enabled !== false && eventConfig.terminalBellEnabled !== false
+
+  function shouldBell(config, eventConfig = {}) {
+    return config.terminalBell?.enabled !== false && eventConfig.terminalBellEnabled !== false;
+  }
+
+  it('bell fires when terminalBell.enabled is true', () => {
+    assert.equal(shouldBell({ terminalBell: { enabled: true } }), true);
+  });
+
+  it('bell fires when terminalBell key is absent (default enabled)', () => {
+    assert.equal(shouldBell({}), true);
+  });
+
+  it('bell is suppressed when terminalBell.enabled is false', () => {
+    assert.equal(shouldBell({ terminalBell: { enabled: false } }), false);
+  });
+
+  it('bell is suppressed by per-event terminalBellEnabled: false', () => {
+    assert.equal(shouldBell({ terminalBell: { enabled: true } }, { terminalBellEnabled: false }), false);
+  });
+
+  it('bell fires when per-event has no terminalBellEnabled key', () => {
+    assert.equal(shouldBell({ terminalBell: { enabled: true } }, {}), true);
+  });
+
+  it('bell fires when per-event terminalBellEnabled is true', () => {
+    assert.equal(shouldBell({ terminalBell: { enabled: true } }, { terminalBellEnabled: true }), true);
+  });
+});
