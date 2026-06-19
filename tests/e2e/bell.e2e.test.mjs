@@ -3,7 +3,7 @@
 import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { seedTempHome, writeUserConfig, runNode, clearLock } from './helpers.mjs';
+import { seedTempHome, writeUserConfig, runNode } from './helpers.mjs';
 
 describe('terminal bell e2e — subprocess invocation', () => {
   const homes = [];
