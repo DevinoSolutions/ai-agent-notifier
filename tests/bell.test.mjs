@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import os from 'node:os';
 import fs from 'node:fs';
 import { sendBell, sendBellWindows, sendBellUnix } from '../src/bell.mjs';
+import { loadConfig } from '../src/config-loader.mjs';
 
 describe('sendBell — platform dispatch', () => {
   it('returns a boolean (true or false)', async () => {
@@ -63,5 +64,12 @@ describe('sendBellUnix — Unix-only', () => {
     // by spawning a subprocess without a controlling terminal.
     const result = await sendBellUnix();
     assert.equal(typeof result, 'boolean');
+  });
+});
+
+describe('terminalBell config defaults', () => {
+  it('default config has terminalBell.enabled = true', () => {
+    const config = loadConfig();
+    assert.equal(config.terminalBell?.enabled, true);
   });
 });

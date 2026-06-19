@@ -9,6 +9,9 @@
     "enabled": true,
     "clickToFocus": true
   },
+  "terminalBell": {
+    "enabled": true
+  },
   "events": {
     "task_complete": {
       "sound": "IM",
