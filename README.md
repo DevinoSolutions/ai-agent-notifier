@@ -33,7 +33,7 @@
 
 ## Demo
 
-https://github.com/DevinoSolutions/ai-agent-notifier/raw/main/assets/demos/demo.mp4
+https://github.com/user-attachments/assets/5714b528-7e04-478e-abfd-2a3d05db562c
 
 [Watch on YouTube](https://www.youtube.com/watch?v=QVVOIIud4-I)
 
