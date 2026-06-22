@@ -33,13 +33,9 @@
 
 ## Demo
 
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=QVVOIIud4-I">
-    <img src="https://img.youtube.com/vi/QVVOIIud4-I/maxresdefault.jpg" alt="AI Agent Notifier Demo" width="600" />
-  </a>
-  <br />
-  <em>Click to watch the full demo on YouTube</em>
-</p>
+https://github.com/DevinoSolutions/ai-agent-notifier/raw/main/assets/demos/demo.mp4
+
+[Watch on YouTube](https://www.youtube.com/watch?v=QVVOIIud4-I)
 
 ## Quick Start
 
