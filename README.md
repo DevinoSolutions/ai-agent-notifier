@@ -33,7 +33,7 @@
 
 ## Demo
 
-<video src="https://github.com/user-attachments/assets/5714b528-7e04-478e-abfd-2a3d05db562c" autoplay loop muted></video>
+https://github.com/user-attachments/assets/5714b528-7e04-478e-abfd-2a3d05db562c
 
 [Watch with sound on YouTube](https://www.youtube.com/watch?v=QVVOIIud4-I)
 
