@@ -31,6 +31,16 @@
 
 ---
 
+## Demo
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=QVVOIIud4-I">
+    <img src="https://img.youtube.com/vi/QVVOIIud4-I/maxresdefault.jpg" alt="AI Agent Notifier Demo" width="600" />
+  </a>
+  <br />
+  <em>Click to watch the full demo on YouTube</em>
+</p>
+
 ## Quick Start
 
 ```bash
