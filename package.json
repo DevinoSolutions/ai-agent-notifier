@@ -8,8 +8,8 @@
   },
   "main": "./src/notify.mjs",
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
-    "test:e2e": "node --test tests/e2e/*.test.mjs",
+    "test": "node scripts/run-tests.mjs tests",
+    "test:e2e": "node scripts/run-tests.mjs tests/e2e",
     "toast:demo": "node scripts/toast-demo.mjs",
     "version": "node scripts/sync-plugin-version.mjs && git add .claude-plugin"
   },
