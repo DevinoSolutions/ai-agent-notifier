@@ -115,11 +115,12 @@ describe('setup with partial / no tools installed', () => {
     }
   });
 
-  it('exits cleanly and reports nothing to do when no tools are installed', () => {
+  it('exits non-zero and reports nothing was set up when no tools are installed', () => {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notools-'));
     try {
       const res = runNode(['cli/index.mjs', 'setup'], { home, stdin: '\n' });
-      assert.equal(res.status, 0, `setup exited non-zero: ${res.stderr}`);
+      // Nothing was set up — setup must fail loud, not exit 0 with a success banner (CL-16).
+      assert.equal(res.status, 1, `setup should exit 1 when no tools are found: ${res.stderr}`);
       assert.match(res.stdout, /No supported AI tools/i);
     } finally {
       fs.rmSync(home, { recursive: true, force: true });

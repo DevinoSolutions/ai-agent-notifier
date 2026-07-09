@@ -138,15 +138,20 @@ describe('corrupt config handling', () => {
   beforeEach(() => fs.mkdirSync(tmpDir, { recursive: true }));
   afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
 
-  it('patchClaude handles invalid JSON in settings.json', async () => {
+  it('patchClaude throws on non-empty invalid JSON and leaves the file untouched (CL-02)', async () => {
     const { patchClaude } = await import('../setup/patch-config.mjs');
     const claudeDir = path.join(tmpDir, '.claude-corrupt');
     fs.mkdirSync(claudeDir, { recursive: true });
-    fs.writeFileSync(path.join(claudeDir, 'settings.json'), '{{not valid json!!');
-    // Should not throw — treats as empty
-    assert.doesNotThrow(() => patchClaude(claudeDir, '/home/user/.npm/ai-agent-notifier/src/notify.mjs'));
-    const result = JSON.parse(fs.readFileSync(path.join(claudeDir, 'settings.json'), 'utf8'));
-    assert.ok(result.hooks.Stop);
+    const settingsPath = path.join(claudeDir, 'settings.json');
+    const corrupt = '{{not valid json!!';
+    fs.writeFileSync(settingsPath, corrupt);
+    // A corrupt real config must NOT be silently overwritten with our hooks.
+    assert.throws(
+      () => patchClaude(claudeDir, '/home/user/.npm/ai-agent-notifier/src/notify.mjs'),
+      /not valid JSON/,
+    );
+    // File is byte-for-byte unchanged.
+    assert.equal(fs.readFileSync(settingsPath, 'utf8'), corrupt);
   });
 
   it('patchCodex handles empty hooks.json', async () => {
