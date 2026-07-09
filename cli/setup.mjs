@@ -5,39 +5,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import https from 'node:https';
 import { execSync } from 'node:child_process';
-import { getConfigDir, getConfigPath, loadConfig, saveConfig } from '../src/config-loader.mjs';
+import { getConfigDir, getConfigPath, loadConfigResult, saveConfig } from '../src/config-loader.mjs';
 import { patchClaude, patchCodex, patchCursor, patchGemini } from '../setup/patch-config.mjs';
+import { ask, askYN, log } from './ui.mjs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = os.homedir();
 const PLATFORM = os.platform();
-
-function ask(rl, question, defaultVal) {
-  return new Promise((resolve) => {
-    const suffix = defaultVal ? ` (${defaultVal})` : '';
-    rl.question(`  ? ${question}${suffix}: `, (answer) => {
-      resolve(answer.trim() || defaultVal || '');
-    });
-  });
-}
-
-function askYN(rl, question, defaultYes = true) {
-  return new Promise((resolve) => {
-    const hint = defaultYes ? '(Y/n)' : '(y/N)';
-    rl.question(`  ? ${question} ${hint}: `, (answer) => {
-      const a = answer.trim().toLowerCase();
-      if (!a) { resolve(defaultYes); return; }
-      resolve(a === 'y' || a === 'yes');
-    });
-  });
-}
-
-function log(msg, color = '') {
-  const colors = { green: '\x1b[32m', cyan: '\x1b[36m', yellow: '\x1b[33m', red: '\x1b[31m', dim: '\x1b[2m', reset: '\x1b[0m', bold: '\x1b[1m' };
-  const c = colors[color] || '';
-  console.log(`${c}${msg}${colors.reset}`);
-}
 
 function detectTools() {
   const tools = [];
@@ -141,6 +116,14 @@ function makeLineShim(lines) {
 }
 
 export async function run() {
+  // Ctrl+C during the wizard aborts before anything is written. All answers are
+  // collected first and the config/patches are written only at the end, so an
+  // abort here genuinely leaves nothing behind.
+  process.on('SIGINT', () => {
+    log('\n  aborted — nothing saved', 'red');
+    process.exit(130);
+  });
+
   // Collect all stdin before any synchronous blocking work (Windows execSync safety).
   const stdinData = await collectStdin();
 
@@ -153,7 +136,7 @@ export async function run() {
     rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   }
 
-  log('\n  ai-agent-notifier \u2014 cross-platform AI agent notifications\n', 'bold');
+  log('\n  ai-agent-notifier — cross-platform AI agent notifications\n', 'bold');
 
   // 1. Platform
   const platLabel = PLATFORM === 'win32' ? 'Windows' : PLATFORM === 'darwin' ? 'macOS' : 'Linux';
@@ -165,26 +148,28 @@ export async function run() {
   const allTools = ['Claude Code', 'Codex CLI', 'Cursor IDE', 'Gemini CLI'];
   const foundNames = tools.map(t => t.label);
   for (const t of allTools) {
-    if (foundNames.includes(t)) log(`    \u2713 ${t}`, 'green');
-    else log(`    \u2717 ${t} (not installed)`, 'dim');
+    if (foundNames.includes(t)) log(`    ✓ ${t}`, 'green');
+    else log(`    ✗ ${t} (not installed)`, 'dim');
   }
 
   if (tools.length === 0) {
+    // Nothing was set up — fail loud so scripts and users don't read this as success.
     log('\n  No supported AI tools found. Install Claude Code, Codex, Gemini CLI, or Cursor first.', 'red');
     rl.close();
+    process.exitCode = 1;
     return;
   }
 
   // 3. Toast backend
   log('\n  Installing toast backend...', 'cyan');
   if (PLATFORM === 'win32') {
-    if (installBurntToast()) log('    \u2713 BurntToast module ready', 'green');
-    else log('    \u2717 BurntToast install failed \u2014 toasts may not work', 'yellow');
+    if (installBurntToast()) log('    ✓ BurntToast module ready', 'green');
+    else log('    ✗ BurntToast install failed — toasts may not work', 'yellow');
   } else if (PLATFORM === 'darwin') {
-    log('    \u2713 osascript (built-in)', 'green');
+    log('    ✓ osascript (built-in)', 'green');
   } else {
-    try { execSync('which notify-send', { stdio: 'pipe' }); log('    \u2713 notify-send available', 'green'); }
-    catch { log('    \u2717 notify-send not found \u2014 install libnotify for toasts', 'yellow'); }
+    try { execSync('which notify-send', { stdio: 'pipe' }); log('    ✓ notify-send available', 'green'); }
+    catch { log('    ✗ notify-send not found — install libnotify for toasts', 'yellow'); }
   }
 
   // 4. Icon
@@ -193,14 +178,26 @@ export async function run() {
   const iconPath = path.join(configDir, 'icon.png');
   if (!fs.existsSync(iconPath)) {
     const ok = await downloadIcon(iconPath);
-    if (ok) log('    \u2713 Notification icon downloaded', 'green');
-    else log('    \u2717 Icon download failed (toasts will use default icon)', 'yellow');
+    if (ok) log('    ✓ Notification icon downloaded', 'green');
+    else log('    ✗ Icon download failed (toasts will use default icon)', 'yellow');
   }
 
-  // 5. ntfy config
-  const enableNtfy = await askYN(rl, 'Enable phone notifications via ntfy?');
-  const config = loadConfig();
+  // 5. Load config (fail loud on a corrupt file, but offer to rebuild it)
+  const { config, problem } = loadConfigResult(getConfigPath());
+  if (problem) {
+    log(`  ${problem.message}`, 'red');
+    const rebuild = await askYN(rl, `config.json is invalid (${problem.type}). Rebuild it from scratch?`, false);
+    if (!rebuild) {
+      log('  aborted — existing config.json left untouched', 'red');
+      rl.close();
+      process.exitCode = 1;
+      return;
+    }
+    // Proceed: `config` holds a clean, usable config to overwrite the bad file with.
+  }
 
+  // 6. ntfy config
+  const enableNtfy = await askYN(rl, 'Enable phone notifications via ntfy?');
   if (enableNtfy) {
     config.ntfy.enabled = true;
     config.ntfy.server = await ask(rl, 'ntfy server', config.ntfy.server || 'https://ntfy.sh');
@@ -211,10 +208,10 @@ export async function run() {
     config.ntfy.enabled = false;
   }
 
-  saveConfig(getConfigPath(), config);
-  log('    \u2713 Config saved', 'green');
+  saveConfig(config, getConfigPath());
+  log('    ✓ Config saved', 'green');
 
-  // 6. Patch tool configs
+  // 7. Patch tool configs — collect failures so we never claim success on error.
   log('\n  Patching tool configs...', 'cyan');
   const notifyPath = resolveNotifyPath();
   const backupDir = path.join(configDir, 'backups');
@@ -226,21 +223,33 @@ export async function run() {
     gemini: patchGemini,
   };
 
+  const failures = [];
   for (const tool of tools) {
     try {
       patchers[tool.name](tool.dir, notifyPath, backupDir);
-      log(`    \u2713 ${tool.label}`, 'green');
+      log(`    ✓ ${tool.label}`, 'green');
     } catch (err) {
-      log(`    \u2717 ${tool.label}: ${err.message}`, 'red');
+      log(`    ✗ ${tool.label}: ${err.message}`, 'red');
+      failures.push({ tool: tool.label, reason: err.message });
     }
   }
+
+  if (failures.length) {
+    log('\n  Setup failed — some tools were not patched:', 'red');
+    for (const f of failures) log(`    ✗ ${f.tool}: ${f.reason}`, 'red');
+    log('    Fix the errors above and re-run setup.', 'yellow');
+    rl.close();
+    process.exitCode = 1;
+    return;
+  }
+
   log(`    Backed up originals to ${backupDir}`, 'dim');
 
-  // 7. ntfy info
+  // 8. ntfy info
   if (config.ntfy.enabled && config.ntfy.topic) {
     const url = `${config.ntfy.server}/${config.ntfy.topic}`;
     log('\n  =======================================', 'cyan');
-    log('    Phone notifications \u2014 subscribe in the ntfy app', 'cyan');
+    log('    Phone notifications — subscribe in the ntfy app', 'cyan');
     log('  =======================================', 'cyan');
     log(`    Topic: ${config.ntfy.topic}`);
     log(`    URL:   ${url}`);
@@ -248,8 +257,8 @@ export async function run() {
     log('    Install the ntfy app (Android/iOS), then subscribe to the URL above.');
   }
 
-  // 8. Summary
-  log('\n  \u2713 Setup complete. Restart your AI tools to activate.\n', 'green');
+  // 9. Summary — only reached when every detected tool patched cleanly.
+  log('\n  ✓ Setup complete. Restart your AI tools to activate.\n', 'green');
 
   rl.close();
 }

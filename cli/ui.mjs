@@ -35,8 +35,8 @@ export const c = {
   bgRgb,
 };
 
-// ── Gradient Text ───────────────────────────────────────────────────
-export function gradient(text, from, to) {
+// ── Gradient Text (internal — used by banner) ───────────────────────
+function gradient(text, from, to) {
   const len = text.length;
   if (len === 0) return text;
   return text.split('').map((ch, i) => {
@@ -48,15 +48,66 @@ export function gradient(text, from, to) {
   }).join('') + RESET;
 }
 
-// ── Strip ANSI (for width calculation) ──────────────────────────────
-export function stripAnsi(str) {
+// ── Strip ANSI (internal — for width calculation) ───────────────────
+function stripAnsi(str) {
   return str.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
-// ── Box Drawing ─────────────────────────────────────────────────────
-const BOX = { tl: '\u256d', tr: '\u256e', bl: '\u2570', br: '\u256f', h: '\u2500', v: '\u2502', lj: '\u251c', rj: '\u2524' };
+// ── Simple color logger ─────────────────────────────────────────────
+// Shared by the setup and config wizards so they format output identically.
+const LOG_COLORS = {
+  green: c.green, cyan: c.cyan, yellow: c.yellow, red: c.red,
+  dim: c.dim, bold: c.bold, white: c.white, muted: c.muted,
+};
 
-export function box(lines, { padding = 1, borderColor = c.muted, titleColor = c.brand, width = 0 } = {}) {
+export function log(msg, color = '') {
+  const fn = LOG_COLORS[color];
+  console.log(fn ? fn(msg) : msg);
+}
+
+// ── readline prompts ────────────────────────────────────────────────
+// Shared by setup and config. Both resolve if the input stream closes (EOF /
+// non-TTY / Ctrl+D) instead of hanging forever on a pending question. The close
+// guard is skipped for readline shims that don't expose an event emitter
+// (setup's pre-collected-stdin shim).
+export function ask(rl, question, defaultVal) {
+  return new Promise((resolve) => {
+    const suffix = defaultVal ? ` (${defaultVal})` : '';
+    let done = false;
+    const onClose = () => finish('');
+    const finish = (answer) => {
+      if (done) return;
+      done = true;
+      if (typeof rl.removeListener === 'function') rl.removeListener('close', onClose);
+      resolve((answer ?? '').trim() || defaultVal || '');
+    };
+    rl.question(`  ? ${question}${suffix}: `, finish);
+    if (typeof rl.on === 'function') rl.on('close', onClose);
+  });
+}
+
+export function askYN(rl, question, defaultYes = true) {
+  return new Promise((resolve) => {
+    const hint = defaultYes ? '(Y/n)' : '(y/N)';
+    let done = false;
+    const onClose = () => finish('');
+    const finish = (answer) => {
+      if (done) return;
+      done = true;
+      if (typeof rl.removeListener === 'function') rl.removeListener('close', onClose);
+      const a = (answer ?? '').trim().toLowerCase();
+      if (!a) { resolve(defaultYes); return; }
+      resolve(a === 'y' || a === 'yes');
+    };
+    rl.question(`  ? ${question} ${hint}: `, finish);
+    if (typeof rl.on === 'function') rl.on('close', onClose);
+  });
+}
+
+// ── Box Drawing ─────────────────────────────────────────────────────
+const BOX = { tl: '╭', tr: '╮', bl: '╰', br: '╯', h: '─', v: '│', lj: '├', rj: '┤' };
+
+export function box(lines, { padding = 1, borderColor = c.muted, width = 0 } = {}) {
   const pad = ' '.repeat(padding);
   const maxContent = width || Math.max(...lines.map(l => stripAnsi(l).length));
   const innerWidth = maxContent + padding * 2;
@@ -75,27 +126,8 @@ export function box(lines, { padding = 1, borderColor = c.muted, titleColor = c.
   return [top, ...rows, bottom].join('\n');
 }
 
-// ── Table ───────────────────────────────────────────────────────────
-export function table(rows, { gap = 2 } = {}) {
-  if (rows.length === 0) return '';
-  const cols = rows[0].length;
-  const widths = Array(cols).fill(0);
-  for (const row of rows) {
-    for (let i = 0; i < cols; i++) {
-      widths[i] = Math.max(widths[i], stripAnsi(String(row[i] || '')).length);
-    }
-  }
-  return rows.map(row =>
-    row.map((cell, i) => {
-      const s = String(cell || '');
-      const pad = ' '.repeat(Math.max(0, widths[i] - stripAnsi(s).length));
-      return s + pad;
-    }).join(' '.repeat(gap))
-  ).join('\n');
-}
-
 // ── Spinner ─────────────────────────────────────────────────────────
-const SPINNER_FRAMES = ['', '', '', '', '', '', '', '', '', ''];
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
 export function spinner(message) {
   let i = 0;
@@ -113,25 +145,19 @@ export function spinner(message) {
     stop(finalMessage, color = c.success) {
       stopped = true;
       clearInterval(timer);
-      stream.write(`\r  ${color('\u2713')} ${finalMessage}\x1b[K\n`);
+      stream.write(`\r  ${color('✓')} ${finalMessage}\x1b[K\n`);
+    },
+    warn(finalMessage) {
+      stopped = true;
+      clearInterval(timer);
+      stream.write(`\r  ${c.warn('⚠')} ${finalMessage}\x1b[K\n`);
     },
     fail(finalMessage) {
       stopped = true;
       clearInterval(timer);
-      stream.write(`\r  ${c.error('\u2717')} ${finalMessage}\x1b[K\n`);
+      stream.write(`\r  ${c.error('✗')} ${finalMessage}\x1b[K\n`);
     },
   };
-}
-
-// ── Progress Bar ────────────────────────────────────────────────────
-export function progressBar(current, total, { width = 30, label = '' } = {}) {
-  const pct = Math.min(1, current / total);
-  const filled = Math.round(width * pct);
-  const empty = width - filled;
-  const bar = c.brand('\u2588'.repeat(filled)) + c.muted('\u2591'.repeat(empty));
-  const percent = c.white(`${Math.round(pct * 100)}%`);
-  const labelStr = label ? `  ${c.muted(label)}` : '';
-  return `  ${bar} ${percent}${labelStr}`;
 }
 
 // ── Banner ──────────────────────────────────────────────────────────
@@ -155,5 +181,5 @@ export function kv(key, value, { keyWidth = 14, keyColor = c.muted, valueColor =
 
 // ── Section Header ──────────────────────────────────────────────────
 export function sectionHeader(title) {
-  return c.brand(`\u25b8 ${title}`);
+  return c.brand(`▸ ${title}`);
 }
