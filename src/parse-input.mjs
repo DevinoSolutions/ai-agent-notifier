@@ -36,7 +36,9 @@ export function parseInput(raw, source, eventOverride) {
     cwd,
     projectName: cwd ? (cwd.split(/[\\/]/).filter(Boolean).pop() || '') : '',
     sessionId: raw.session_id || raw.sessionId || '',
+    // Kept even when unmapped: the hook logs unrecognized events by this name
+    // so misconfigured wiring (or a tool's new event type) is visible in
+    // errors.log instead of vanishing.
     rawEvent: hookEvent,
-    raw,
   };
 }

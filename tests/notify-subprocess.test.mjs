@@ -49,6 +49,22 @@ describe('notify.mjs subprocess robustness (a hook must never crash)', () => {
     assert.match(res.stdout, /\{\}/);
   });
 
+  it('logs the unmapped event name to errors.log so misconfigured wiring is visible', () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-unmapped-'));
+    const env = { ...process.env, HOME: home, USERPROFILE: home };
+    for (const k of SCRUB) delete env[k];
+    const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
+      cwd: repoRoot,
+      input: JSON.stringify({ hook_event_name: 'PreToolUse', cwd: '/x', session_id: 's' }),
+      env, encoding: 'utf8', timeout: 30000,
+    });
+    assert.equal(res.status, 0, res.stderr);
+    const log = fs.readFileSync(path.join(home, '.ai-agent-notifier', 'errors.log'), 'utf8');
+    assert.match(log, /"context":"router"/);
+    assert.match(log, /PreToolUse/);
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
   it('exits 0 on a valid completed event with both channels disabled', () => {
     const res = runNotify(JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/app', session_id: 's' }));
     assert.equal(res.status, 0, res.stderr);
@@ -59,5 +75,28 @@ describe('notify.mjs subprocess robustness (a hook must never crash)', () => {
     const res = runNotify(JSON.stringify({ session_id: 's' }), 'codex', ['--event', 'Stop']);
     assert.equal(res.status, 0, res.stderr);
     assert.match(res.stdout, /\{\}/);
+  });
+
+  it('exits 0, emits {}, and logs a config:parse entry on a corrupt config.json', () => {
+    // Unlike runNotify (which seeds a valid config and deletes the home), this test
+    // keeps its own home so it can read back the JSONL error log afterward.
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-badcfg-'));
+    const cfgDir = path.join(home, '.ai-agent-notifier');
+    fs.mkdirSync(cfgDir, { recursive: true });
+    // Deliberately invalid JSON: the loader must fall back to defaults, keep the
+    // hook alive (exit 0 + {}), and record the parse failure to errors.log.
+    fs.writeFileSync(path.join(cfgDir, 'config.json'), '{ not: valid json ,,, ');
+    const env = { ...process.env, HOME: home, USERPROFILE: home };
+    for (const k of SCRUB) delete env[k];
+    const res = spawnSync(process.execPath, ['src/notify.mjs', '--source', 'claude'], {
+      cwd: repoRoot,
+      input: JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/app', session_id: 's' }),
+      env, encoding: 'utf8', timeout: 30000,
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.equal(res.stdout, '{}\n');
+    const log = fs.readFileSync(path.join(cfgDir, 'errors.log'), 'utf8');
+    assert.match(log, /config:parse/, `errors.log should record a config:parse entry, got: ${log}`);
+    fs.rmSync(home, { recursive: true, force: true });
   });
 });

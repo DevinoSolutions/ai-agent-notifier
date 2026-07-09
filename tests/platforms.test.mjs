@@ -46,14 +46,14 @@ describe('toast backends fail gracefully (return false, never throw)', () => {
   it('macos sendToast resolves false when osascript is unavailable', async (t) => {
     if (platform === 'darwin') return t.skip('would attempt a real notification on macOS');
     const { sendToast } = await import('../src/platforms/macos.mjs');
-    const r = await sendToast({ title: 'T', message: 'M', sound: 'default' });
+    const r = await sendToast({ title: 'T', message: 'M', toastSound: 'default' });
     assert.equal(r, false);
   });
 
   it('linux sendToast resolves false when notify-send is unavailable', async (t) => {
     if (platform === 'linux') return t.skip('would attempt a real notification on Linux');
     const { sendToast } = await import('../src/platforms/linux.mjs');
-    const r = await sendToast({ title: 'T', message: 'M', ntfyPriority: 'urgent', source: 'claude' });
+    const r = await sendToast({ title: 'T', message: 'M', priority: 'urgent', source: 'claude' });
     assert.equal(r, false);
   });
 
@@ -78,7 +78,7 @@ describe('native toast fires on its own OS (live — set AAN_TOAST_LIVE=1)', () 
     if (!LIVE) return t.skip('set AAN_TOAST_LIVE=1 to fire a real notification');
     if (platform !== 'darwin') return t.skip('not macOS');
     const { sendToast } = await import('../src/platforms/macos.mjs');
-    const r = await sendToast({ title: 'AAN CI', message: 'macOS native toast test', sound: 'default' });
+    const r = await sendToast({ title: 'AAN CI', message: 'macOS native toast test', toastSound: 'default' });
     assert.equal(r, true);
   });
 
@@ -87,7 +87,7 @@ describe('native toast fires on its own OS (live — set AAN_TOAST_LIVE=1)', () 
     if (platform !== 'win32') return t.skip('not Windows');
     const { sendToast } = await import('../src/platforms/windows.mjs');
     const r = await sendToast({
-      title: 'AAN CI', message: 'Windows native toast test', sound: 'Default',
+      title: 'AAN CI', message: 'Windows native toast test', toastSound: 'Default',
       projectName: 'aan', cwd: process.cwd(), source: 'claude',
     });
     assert.equal(r, true);

@@ -10,5 +10,8 @@ If Not CreateObject("Scripting.FileSystemObject").FileExists(scriptPath) Then
 End If
 If WScript.Arguments.Count > 0 Then
   arg = WScript.Arguments(0)
+  ' A quote inside the argument would break out of the quoted pwsh argument
+  ' boundary (the arg is a project name / cwd, which can contain anything).
+  arg = Replace(arg, """", "")
   shell.Run "pwsh -NoProfile -ExecutionPolicy Bypass -File """ & scriptPath & """ """ & arg & """", 0, False
 End If
