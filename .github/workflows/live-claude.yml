@@ -5,7 +5,14 @@ name: Live Claude
 # without secret access — turns the build red instead of skipping silently.
 on:
   push:
+    branches: [main]
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
   pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
 
 jobs:
   live-claude:
@@ -14,11 +21,13 @@ jobs:
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: npm install
-      - run: npm install -g @anthropic-ai/claude-code
+      - name: Install Claude Code CLI
+        # pinned — bump deliberately; drift canary tracks @latest
+        run: npm install -g @anthropic-ai/claude-code@2.1.205
       - name: Drive Claude end-to-end (hard-fails if key missing or hook silent)
         run: node scripts/live-claude.mjs

@@ -1,5 +1,9 @@
 // tests/e2e/bell.e2e.test.mjs — E2E subprocess tests for terminal bell integration.
-// Spawns the real notify.mjs process and verifies bell channel behavior via stderr output.
+// Spawns the real notify.mjs process and asserts the hook exits 0 and emits {} with the
+// bell channel enabled (default), disabled, and per-event-suppressed. The BEL byte is
+// written to /dev/tty, which is not capturable without a pty, so these tests verify the
+// dispatch path completes cleanly and never crashes the host — not that a terminal
+// audibly rang (that side is covered by tests/bell.test.mjs and the platform tests).
 import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -17,8 +21,9 @@ describe('terminal bell e2e — subprocess invocation', () => {
     const stdin = JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/proj', session_id: 'x' });
     const res = runNode(['src/notify.mjs', '--source', 'claude'], { home, stdin });
     assert.equal(res.status, 0, `notify.mjs exited non-zero: ${res.stderr}`);
-    // The process exits 0 regardless — bell is best-effort.
-    // We just verify the hook completes without crashing when bell is in the dispatch.
+    // Best-effort bell: the BEL byte goes to /dev/tty (uncapturable here), so we assert the
+    // dispatch path completes cleanly and still emits the {} hook response.
+    assert.match(res.stdout, /\{\}/, 'hook must emit {} with bell in the dispatch');
   });
 
   it('bell channel is excluded when terminalBell.enabled is false', () => {
@@ -28,6 +33,7 @@ describe('terminal bell e2e — subprocess invocation', () => {
     const stdin = JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/proj', session_id: 'x' });
     const res = runNode(['src/notify.mjs', '--source', 'claude'], { home, stdin });
     assert.equal(res.status, 0, `notify.mjs exited non-zero: ${res.stderr}`);
+    assert.match(res.stdout, /\{\}/, 'hook must emit {} with bell disabled');
   });
 
   it('bell channel respects per-event terminalBellEnabled override', () => {
@@ -42,6 +48,7 @@ describe('terminal bell e2e — subprocess invocation', () => {
     const stdin = JSON.stringify({ hook_event_name: 'Stop', cwd: '/work/proj', session_id: 'x' });
     const res = runNode(['src/notify.mjs', '--source', 'claude'], { home, stdin });
     assert.equal(res.status, 0, `notify.mjs exited non-zero: ${res.stderr}`);
+    assert.match(res.stdout, /\{\}/, 'hook must emit {} with bell per-event-suppressed');
   });
 
   it('all three channels coexist without interference', () => {

@@ -5,17 +5,24 @@ name: Live Cursor
 # (already required by Live Codex) so no separate cursor.com account is needed.
 on:
   push:
+    branches: [main]
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
   pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
 
 jobs:
   live-cursor:
-    name: Live Cursor E2E (required)
+    name: Live Cursor (key + hook wiring validation)
     runs-on: ubuntu-latest
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: npm install

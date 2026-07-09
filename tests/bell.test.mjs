@@ -7,19 +7,24 @@ import { sendBell, sendBellWindows, sendBellUnix } from '../src/bell.mjs';
 import { loadConfig } from '../src/config-loader.mjs';
 
 describe('sendBell — platform dispatch', () => {
+  // Without a controlling pty the BEL byte itself is unobservable, so the checks
+  // below are smoke-level: they assert the call resolved to a boolean (i.e. ran
+  // to completion without throwing), not that a terminal audibly rang. The
+  // meaning of that boolean is pinned by the stronger /dev/tty-consistency
+  // assertion in the sendBellUnix suite further down.
   it('returns a boolean (true or false)', async () => {
     const result = await sendBell();
-    assert.equal(typeof result, 'boolean');
+    assert.equal(typeof result, 'boolean'); // smoke-level: return type only
   });
 
   it('calls the correct platform function and returns boolean', async () => {
     const platform = os.platform();
     if (platform === 'win32') {
       const result = await sendBellWindows();
-      assert.equal(typeof result, 'boolean');
+      assert.equal(typeof result, 'boolean'); // smoke-level: return type only
     } else {
       const result = await sendBellUnix();
-      assert.equal(typeof result, 'boolean');
+      assert.equal(typeof result, 'boolean'); // smoke-level: return type only
     }
   });
 });
@@ -30,7 +35,7 @@ describe('sendBellWindows — Windows-only (fails if not on win32)', () => {
   it('executes the PowerShell bell script and returns boolean', async (t) => {
     if (platform !== 'win32') return t.skip('not Windows');
     const result = await sendBellWindows();
-    assert.equal(typeof result, 'boolean');
+    assert.equal(typeof result, 'boolean'); // smoke-level: script ran without throwing (audible BEL not observable here)
   });
 
   it('returns false when pwsh is unavailable', async (t) => {
@@ -47,7 +52,7 @@ describe('sendBellUnix — Unix-only', () => {
   it('writes BEL to /dev/tty when a controlling terminal exists', async (t) => {
     if (platform === 'win32') return t.skip('not Unix');
     const result = await sendBellUnix();
-    assert.equal(typeof result, 'boolean');
+    assert.equal(typeof result, 'boolean'); // smoke-level: return type only — the exact value is pinned below
 
     // Verify consistency: try opening /dev/tty the same way the production
     // code does. accessSync(W_OK) can report writable even when openSync
@@ -63,7 +68,7 @@ describe('sendBellUnix — Unix-only', () => {
     // signature and return type. The no-tty + no-tmux path is tested in e2e
     // by spawning a subprocess without a controlling terminal.
     const result = await sendBellUnix();
-    assert.equal(typeof result, 'boolean');
+    assert.equal(typeof result, 'boolean'); // smoke-level: return type only
   });
 });
 
