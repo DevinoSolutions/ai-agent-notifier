@@ -4,9 +4,9 @@ import { route } from '../src/router.mjs';
 
 const defaultConfig = {
   events: {
-    task_complete: { sound: 'IM', ntfyPriority: 'default', ntfyTags: 'white_check_mark' },
-    needs_input: { sound: 'Reminder', ntfyPriority: 'urgent', ntfyTags: 'bell,warning' },
-    session_start: { sound: 'Default', ntfyPriority: 'low', ntfyTags: 'rocket' },
+    task_complete: { toastSound: 'IM', priority: 'default', ntfyTags: 'white_check_mark' },
+    needs_input: { toastSound: 'Reminder', priority: 'urgent', ntfyTags: 'bell,warning' },
+    session_start: { toastSound: 'Default', priority: 'low', ntfyTags: 'rocket' },
   },
   sources: {
     claude: { label: 'Claude Code' },
@@ -20,8 +20,8 @@ describe('route', () => {
     const notif = route(event, defaultConfig);
     assert.equal(notif.title, 'Claude Code');
     assert.equal(notif.message, 'my-app: Task complete');
-    assert.equal(notif.sound, 'IM');
-    assert.equal(notif.ntfyPriority, 'default');
+    assert.equal(notif.toastSound, 'IM');
+    assert.equal(notif.priority, 'default');
     assert.equal(notif.ntfyTags, 'white_check_mark');
   });
 
@@ -30,8 +30,8 @@ describe('route', () => {
     const notif = route(event, defaultConfig);
     assert.equal(notif.title, 'Codex');
     assert.equal(notif.message, 'backend: Needs your input');
-    assert.equal(notif.sound, 'Reminder');
-    assert.equal(notif.ntfyPriority, 'urgent');
+    assert.equal(notif.toastSound, 'Reminder');
+    assert.equal(notif.priority, 'urgent');
   });
 
   it('routes session_start with low priority and rocket tag', () => {
@@ -39,7 +39,7 @@ describe('route', () => {
     const notif = route(event, defaultConfig);
     assert.equal(notif.title, 'Claude Code');
     assert.equal(notif.message, 'app: Session started');
-    assert.equal(notif.ntfyPriority, 'low');
+    assert.equal(notif.priority, 'low');
     assert.equal(notif.ntfyTags, 'rocket');
   });
 

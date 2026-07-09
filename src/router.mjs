@@ -4,6 +4,10 @@ const EVENT_MESSAGES = {
   session_start: 'Session started',
 };
 
+// Build the canonical notification object every channel consumes.
+// `priority` uses the ntfy 5-level scale (min|low|default|high|urgent) as the
+// app-wide scale: ntfy sends it verbatim, the Linux backend maps it to
+// notify-send urgency. `toastSound` is only honored by desktop toast backends.
 export function route(event, config) {
   const messageTemplate = EVENT_MESSAGES[event.event];
   if (!messageTemplate) return null;
@@ -16,10 +20,11 @@ export function route(event, config) {
   return {
     title: label,
     message: `${prefix}${messageTemplate}`,
-    sound: eventConfig.sound || 'Default',
-    ntfyPriority: eventConfig.ntfyPriority || 'default',
+    toastSound: eventConfig.toastSound || 'Default',
+    priority: eventConfig.priority || 'default',
     ntfyTags: eventConfig.ntfyTags || '',
     icon: sourceConfig.icon || '',
+    clickToFocus: config.toast?.clickToFocus !== false,
     event: event.event,
     source: event.source,
     projectName: event.projectName,

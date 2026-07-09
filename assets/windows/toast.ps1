@@ -5,7 +5,8 @@ param(
   [string]$ProjectName = '',
   [string]$Cwd = '',
   [string]$Hwnd = '0',
-  [string]$Source = ''
+  [string]$Source = '',
+  [string]$ClickToFocus = 'true'
 )
 # Per-source icon: assets/icons/<source>.png
 $iconsDir = Join-Path $PSScriptRoot '..\icons'
@@ -39,7 +40,7 @@ function Register-AgentFocusProtocol {
   New-Item -Path "$regPath\shell\open\command" -Force | Out-Null
   Set-ItemProperty -Path "$regPath\shell\open\command" -Name '(default)' -Value $cmd
 }
-Register-AgentFocusProtocol
+if ($ClickToFocus -ne 'false') { Register-AgentFocusProtocol }
 
 function Get-AncestorWindowHandle {
   # Walk the parent-process chain to find the owning terminal/IDE window.
@@ -91,7 +92,7 @@ public static class AANProcMap {
   return 0
 }
 
-if ($ProjectName -or $Cwd) {
+if (($ProjectName -or $Cwd) -and $ClickToFocus -ne 'false') {
   if ($Hwnd -ne '0') {
     $hwnd = $Hwnd
   } else {
@@ -126,5 +127,9 @@ try {
     }
   }
 } catch {
+  # Degraded fallback: still make a sound, but exit non-zero so the caller
+  # (src/platforms/windows.mjs) records WHY the real toast never appeared.
   try { [System.Media.SystemSounds]::Exclamation.Play() } catch {}
+  [Console]::Error.WriteLine("toast.ps1: BurntToast notification failed: $($_.Exception.Message)")
+  exit 3
 }

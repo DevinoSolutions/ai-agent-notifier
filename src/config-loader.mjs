@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { createRequire } from 'node:module';
+import { logHookError } from './error-log.mjs';
 
 const require = createRequire(import.meta.url);
 const defaults = require('../config/default-config.json');
@@ -29,20 +30,129 @@ export function getConfigPath() {
   return path.join(getConfigDir(), 'config.json');
 }
 
-export function loadConfig(configPath = getConfigPath()) {
-  const config = JSON.parse(JSON.stringify(defaults)); // deep clone defaults
-  try {
-    const raw = fs.readFileSync(configPath, 'utf8');
-    const user = JSON.parse(raw);
-    deepMerge(config, user);
-  } catch {
-    // no user config — use defaults
+const EVENT_OVERRIDE_TYPES = {
+  toastSound: 'string',
+  priority: 'string',
+  ntfyTags: 'string',
+  toastEnabled: 'boolean',
+  ntfyEnabled: 'boolean',
+  terminalBellEnabled: 'boolean',
+};
+const RENAMED_KEYS = {
+  sound: 'toastSound',
+  ntfyPriority: 'priority',
+};
+const PRIORITY_VALUES = ['min', 'low', 'default', 'high', 'urgent'];
+
+// Shallow schema check. Wrong-typed keys are DELETED from the user object
+// (defaults win) and reported, so a bad value can never poison the runtime.
+// Unknown keys are reported but kept — they are usually typos.
+function validateUserConfig(user) {
+  const issues = [];
+  const checkBlock = (blockName, spec) => {
+    const block = user[blockName];
+    if (block === undefined) return;
+    if (typeof block !== 'object' || block === null || Array.isArray(block)) {
+      issues.push(`"${blockName}" must be an object`);
+      delete user[blockName];
+      return;
+    }
+    for (const [key, val] of Object.entries(block)) {
+      const expected = spec[key];
+      if (!expected) { issues.push(`unknown key "${blockName}.${key}"`); continue; }
+      if (typeof val !== expected) {
+        issues.push(`"${blockName}.${key}" must be a ${expected}, got ${typeof val}`);
+        delete block[key];
+      }
+    }
+  };
+
+  checkBlock('ntfy', { enabled: 'boolean', server: 'string', topic: 'string', click: 'string', icon: 'string' });
+  checkBlock('toast', { enabled: 'boolean', clickToFocus: 'boolean' });
+  checkBlock('terminalBell', { enabled: 'boolean' });
+  checkBlock('sentry', { enabled: 'boolean', dsn: 'string' });
+
+  if (user.events !== undefined) {
+    if (typeof user.events !== 'object' || user.events === null) {
+      issues.push('"events" must be an object');
+      delete user.events;
+    } else {
+      for (const [eventName, overrides] of Object.entries(user.events)) {
+        if (typeof overrides !== 'object' || overrides === null) {
+          issues.push(`"events.${eventName}" must be an object`);
+          delete user.events[eventName];
+          continue;
+        }
+        for (const [key, val] of Object.entries(overrides)) {
+          if (RENAMED_KEYS[key]) {
+            issues.push(`"events.${eventName}.${key}" was renamed to "${RENAMED_KEYS[key]}" — update your config.json`);
+            continue;
+          }
+          const expected = EVENT_OVERRIDE_TYPES[key];
+          if (!expected) { issues.push(`unknown key "events.${eventName}.${key}"`); continue; }
+          if (typeof val !== expected) {
+            issues.push(`"events.${eventName}.${key}" must be a ${expected}, got ${typeof val}`);
+            delete overrides[key];
+          } else if (key === 'priority' && !PRIORITY_VALUES.includes(val)) {
+            issues.push(`"events.${eventName}.priority" must be one of ${PRIORITY_VALUES.join('|')}, got "${val}"`);
+            delete overrides[key];
+          }
+        }
+      }
+    }
   }
+
+  const knownTop = ['ntfy', 'toast', 'terminalBell', 'sentry', 'events', 'sources'];
+  for (const key of Object.keys(user)) {
+    if (!knownTop.includes(key)) issues.push(`unknown key "${key}"`);
+  }
+  return issues;
+}
+
+// Load defaults + user config, reporting exactly what is wrong with the user
+// file instead of silently pretending it does not exist.
+// problem: null | { type: 'read'|'parse'|'validate', message: string }
+export function loadConfigResult(configPath = getConfigPath()) {
+  const config = JSON.parse(JSON.stringify(defaults)); // deep clone defaults
+
+  let raw;
+  try {
+    raw = fs.readFileSync(configPath, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return { config, problem: null }; // no user config — defaults are the contract
+    return { config, problem: { type: 'read', message: `cannot read ${configPath}: ${err.message}` } };
+  }
+
+  let user;
+  try {
+    user = JSON.parse(raw);
+  } catch (err) {
+    return { config, problem: { type: 'parse', message: `${configPath} is not valid JSON (${err.message}) — using defaults` } };
+  }
+
+  const issues = validateUserConfig(user);
+  deepMerge(config, user);
+  const problem = issues.length
+    ? { type: 'validate', message: `${configPath}: ${issues.join('; ')}` }
+    : null;
+  return { config, problem };
+}
+
+// Hook-path loader: never throws, but a broken user config is logged to
+// errors.log (and Sentry when enabled) instead of being silently ignored.
+// CLI commands should prefer loadConfigResult and fail loud on problem.
+export function loadConfig(configPath = getConfigPath()) {
+  const { config, problem } = loadConfigResult(configPath);
+  if (problem) logHookError(`config:${problem.type}`, new Error(problem.message));
   return config;
 }
 
-export function saveConfig(configPath = getConfigPath(), config) {
+// Atomic write: temp file + rename so a crash mid-write can never leave a
+// truncated config.json behind.
+export function saveConfig(config, configPath = getConfigPath()) {
   const dir = path.dirname(configPath);
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
+  const tmpPath = `${configPath}.${process.pid}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2) + '\n', 'utf8');
+  fs.renameSync(tmpPath, configPath);
 }

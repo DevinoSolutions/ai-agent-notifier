@@ -16,9 +16,9 @@
 // Each toast uses the real router output and the real per-OS backend, so what
 // you see here is exactly what an agent hook produces in production.
 import os from 'node:os';
-import path from 'node:path';
 import { route } from '../src/router.mjs';
 import { loadConfig } from '../src/config-loader.mjs';
+import { resolveToastBackend } from '../src/platforms/index.mjs';
 
 const SOURCES = ['claude', 'codex', 'gemini', 'cursor'];
 // session_start is toast-suppressed by default config, so it's not a useful
@@ -35,13 +35,6 @@ function parseArgs(argv) {
   return args;
 }
 
-async function getToastBackend() {
-  const platform = os.platform();
-  if (platform === 'win32') return (await import('../src/platforms/windows.mjs')).sendToast;
-  if (platform === 'darwin') return (await import('../src/platforms/macos.mjs')).sendToast;
-  return (await import('../src/platforms/linux.mjs')).sendToast;
-}
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
@@ -52,7 +45,7 @@ async function main() {
       : 'linux.mjs (notify-send)';
 
   const config = loadConfig(); // real merged config (defaults + ~/.ai-agent-notifier)
-  const sendToast = await getToastBackend();
+  const sendToast = await resolveToastBackend();
 
   const sources = args.source ? [args.source] : SOURCES;
   const events = args.event ? [args.event] : EVENTS;

@@ -9,18 +9,30 @@ import { route } from './router.mjs';
 import { loadConfig } from './config-loader.mjs';
 import { sendNtfy } from './ntfy.mjs';
 import { sendBell } from './bell.mjs';
+import { resolveToastBackend } from './platforms/index.mjs';
+import { enableSentryMirror, logHookError, flushErrorReporting } from './error-log.mjs';
 
-// Deduplication: some tools (Cursor) fire the stop hook twice simultaneously.
-// Use exclusive file creation as an atomic lock to ensure only one invocation
-// sends notifications per event.
-export function acquireNotifyLock(source, baseDir = os.homedir()) {
+// Some tools (Cursor) fire the same hook twice simultaneously. Exclusive file
+// creation is the atomic lock that lets only one invocation notify. The key
+// includes event (and session when present) so DISTINCT events — e.g. a
+// task_complete followed seconds later by a needs_input — never suppress each
+// other; only true double-fires of the same event collide.
+const DEDUP_WINDOW_MS = 1500;
+
+export function dedupKey(event) {
+  const sessionSuffix = event.sessionId ? `-${event.sessionId.slice(0, 8)}` : '';
+  return `${event.source}-${event.event}${sessionSuffix}`.replace(/[^A-Za-z0-9_.-]/g, '_');
+}
+
+export function acquireNotifyLock(key, baseDir = os.homedir()) {
   const dir = path.join(baseDir, '.ai-agent-notifier');
-  const lockFile = path.join(dir, `.lock-${source}`);
+  const lockFile = path.join(dir, `.lock-${key}`);
   try { fs.mkdirSync(dir, { recursive: true }); } catch {}
-  // Clean up stale locks (>10 seconds old)
+  // Clean up locks older than the dedup window (locks are never released —
+  // the short window makes that harmless)
   try {
     const stat = fs.statSync(lockFile);
-    if (Date.now() - stat.mtimeMs > 10000) fs.unlinkSync(lockFile);
+    if (Date.now() - stat.mtimeMs > DEDUP_WINDOW_MS) fs.unlinkSync(lockFile);
   } catch {}
   // Exclusive create — only the first process wins
   try {
@@ -28,16 +40,12 @@ export function acquireNotifyLock(source, baseDir = os.homedir()) {
     fs.writeSync(fd, String(process.pid));
     fs.closeSync(fd);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // EEXIST is the one true duplicate signal (a concurrent invocation won the
+    // exclusive create). Any other failure — read-only HOME, ENOTDIR, quota —
+    // fails OPEN: a rare double notification beats never notifying again.
+    return err?.code !== 'EEXIST';
   }
-}
-
-async function getToastBackend() {
-  const platform = os.platform();
-  if (platform === 'win32') return (await import('./platforms/windows.mjs')).sendToast;
-  if (platform === 'darwin') return (await import('./platforms/macos.mjs')).sendToast;
-  return (await import('./platforms/linux.mjs')).sendToast;
 }
 
 export function parseArgs(argv) {
@@ -70,25 +78,53 @@ function readStdin() {
   });
 }
 
+// Run one channel send. Senders resolve booleans and log their own failure
+// detail at the source; this wrapper only has to catch unexpected throws so
+// one broken channel can never take down the others.
+function trackChannel(channel, promise) {
+  return promise.then(
+    (ok) => ({ channel, ok }),
+    (err) => { logHookError(channel, err); return { channel, ok: false }; },
+  );
+}
+
 async function main() {
   try {
     const args = parseArgs(process.argv);
+    const stdinData = await readStdin();
 
-    // Deduplicate: if another instance for this source is already running, exit
-    if (!acquireNotifyLock(args.source)) {
+    let raw;
+    try {
+      raw = JSON.parse(stdinData);
+    } catch {
+      raw = {};
+      logHookError('stdin', new Error('malformed hook stdin JSON'), { source: args.source, bytes: stdinData.length });
+    }
+
+    const event = parseInput(raw, args.source, args.event);
+    const config = loadConfig();
+    enableSentryMirror(config.sentry);
+
+    // Deduplicate AFTER parsing so the lock can key on source+event+session
+    if (!acquireNotifyLock(dedupKey(event))) {
+      await flushErrorReporting();
       process.stdout.write('{}\n');
       process.exit(0);
     }
 
-    const stdinData = await readStdin();
-    let raw;
-    try { raw = JSON.parse(stdinData); } catch { raw = {}; }
-
-    const event = parseInput(raw, args.source, args.event);
-    const config = loadConfig();
     const notification = route(event, config);
-
-    if (!notification) { process.stdout.write('{}\n'); process.exit(0); }
+    if (!notification) {
+      // A hook fired an event we don't map to any notification. That's either
+      // wiring pointed at the wrong event or a tool's new event type — say so
+      // in errors.log (surfaced by `status`) instead of exiting silently.
+      logHookError('router', new Error(`hook event '${event.rawEvent || '(none)'}' from ${event.source} is not mapped to a notification`), {
+        rawEvent: event.rawEvent,
+        source: event.source,
+      });
+      await flushErrorReporting();
+      process.stdout.write('{}\n');
+      process.exit(0);
+    }
 
     // Check per-event overrides
     const eventConfig = config.events?.[event.event] || {};
@@ -97,24 +133,28 @@ async function main() {
 
     // Toast
     if (config.toast?.enabled !== false && eventConfig.toastEnabled !== false) {
-      const sendToast = await getToastBackend();
-      tasks.push(sendToast(notification));
+      const sendToast = await resolveToastBackend();
+      tasks.push(trackChannel('toast', sendToast(notification)));
     }
 
     // ntfy
     if (config.ntfy?.enabled && config.ntfy?.topic && eventConfig.ntfyEnabled !== false) {
-      tasks.push(sendNtfy(config.ntfy, notification));
+      tasks.push(trackChannel('ntfy', sendNtfy(config.ntfy, notification)));
     }
 
-    // Terminal bell
+    // Terminal bell (best-effort by design: `ok: false` here usually just
+    // means "no controlling terminal", so only unexpected throws are logged)
     if (config.terminalBell?.enabled !== false && eventConfig.terminalBellEnabled !== false) {
-      tasks.push(sendBell());
+      tasks.push(trackChannel('bell', sendBell()));
     }
 
-    await Promise.allSettled(tasks);
-  } catch {
-    // Never crash — hooks must not block the AI tool
+    await Promise.all(tasks);
+  } catch (err) {
+    // Never crash — hooks must not block the AI tool. But never hide it
+    // either: errors.log + `status` (+ Sentry when enabled) make it visible.
+    logHookError('hook', err);
   }
+  await flushErrorReporting();
   // Write empty JSON response — some tools (Cursor) expect stdout output
   // and may retry the hook if they get nothing.
   process.stdout.write('{}\n');

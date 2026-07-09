@@ -22,7 +22,7 @@ describe('full pipeline: stdin → notification', () => {
 
     assert.equal(notification.title, 'Claude Code');
     assert.equal(notification.message, 'my-app: Task complete');
-    assert.equal(notification.sound, 'IM');
+    assert.equal(notification.toastSound, 'IM');
     assert.equal(notification.source, 'claude');
     assert.equal(notification.cwd, '/home/user/my-app');
   });
@@ -34,7 +34,7 @@ describe('full pipeline: stdin → notification', () => {
 
     assert.equal(notification.title, 'Codex');
     assert.equal(notification.message, 'backend: Needs your input');
-    assert.equal(notification.ntfyPriority, 'urgent');
+    assert.equal(notification.priority, 'urgent');
   });
 
   it('Cursor stop via --event flag (no stdin hook_event_name)', () => {

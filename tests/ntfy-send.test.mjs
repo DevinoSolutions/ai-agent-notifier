@@ -41,7 +41,7 @@ describe('sendNtfy (real local HTTP server, no mocking)', () => {
     statusToReturn = 200;
     const ok = await sendNtfy(
       { server: base, topic: 'my-topic' },
-      { title: 'Claude Code', message: 'app: Task complete', ntfyPriority: 'urgent', ntfyTags: 'bell,warning' }
+      { title: 'Claude Code', message: 'app: Task complete', priority: 'urgent', ntfyTags: 'bell,warning' }
     );
     assert.equal(ok, true);
     assert.equal(last.method, 'POST');

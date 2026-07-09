@@ -3,7 +3,7 @@
     "enabled": true,
     "server": "https://ntfy.sh",
     "topic": "",
-    "click": "https://claude.ai/"
+    "click": ""
   },
   "toast": {
     "enabled": true,
@@ -12,23 +12,28 @@
   "terminalBell": {
     "enabled": true
   },
+  "sentry": {
+    "enabled": false,
+    "dsn": ""
+  },
   "events": {
     "task_complete": {
-      "sound": "IM",
-      "ntfyPriority": "default",
+      "toastSound": "IM",
+      "priority": "default",
       "ntfyTags": "white_check_mark"
     },
     "needs_input": {
-      "sound": "Reminder",
-      "ntfyPriority": "urgent",
+      "toastSound": "Reminder",
+      "priority": "urgent",
       "ntfyTags": "bell,warning"
     },
     "session_start": {
-      "sound": "Default",
-      "ntfyPriority": "low",
+      "toastSound": "Default",
+      "priority": "low",
       "ntfyTags": "rocket",
       "toastEnabled": false,
-      "ntfyEnabled": false
+      "ntfyEnabled": false,
+      "terminalBellEnabled": false
     }
   },
   "sources": {

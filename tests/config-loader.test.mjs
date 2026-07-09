@@ -23,7 +23,7 @@ describe('config-loader', () => {
     const config = loadConfig(path.join(tmpDir, 'nonexistent', 'config.json'));
     assert.equal(config.ntfy.server, 'https://ntfy.sh');
     assert.equal(config.toast.enabled, true);
-    assert.equal(config.events.task_complete.sound, 'IM');
+    assert.equal(config.events.task_complete.toastSound, 'IM');
   });
 
   it('merges user config over defaults', async () => {
@@ -48,14 +48,14 @@ describe('config-loader', () => {
     const config = loadConfig(configPath);
     assert.equal(config.ntfy.server, 'https://ntfy.sh');
     assert.equal(config.toast.enabled, true);
-    assert.equal(config.events.needs_input.ntfyPriority, 'urgent');
+    assert.equal(config.events.needs_input.priority, 'urgent');
   });
 
   it('saves config to disk', async () => {
     const { loadConfig, saveConfig } = await import('../src/config-loader.mjs');
     const config = loadConfig(configPath);
     config.ntfy.topic = 'saved-topic';
-    saveConfig(configPath, config);
+    saveConfig(config, configPath);
     const raw = JSON.parse(fs.readFileSync(configPath, 'utf8'));
     assert.equal(raw.ntfy.topic, 'saved-topic');
   });

@@ -12,7 +12,7 @@ export async function sendBellWindows() {
   return new Promise((resolve) => {
     execFile('pwsh', [
       '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', BELL_SCRIPT,
-    ], { timeout: 10000 }, (err) => {
+    ], { timeout: 5000 }, (err) => {
       resolve(!err);
     });
   });

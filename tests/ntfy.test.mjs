@@ -14,7 +14,7 @@ describe('buildNtfyRequest', () => {
     const req = buildNtfyRequest(ntfyConfig, {
       title: 'Claude Code',
       message: 'Task complete',
-      ntfyPriority: 'default',
+      priority: 'default',
       ntfyTags: 'check',
     });
     assert.equal(req.url, 'https://ntfy.sh/test-topic-123');
@@ -24,7 +24,7 @@ describe('buildNtfyRequest', () => {
     const req = buildNtfyRequest(ntfyConfig, {
       title: 'Codex',
       message: 'Needs input',
-      ntfyPriority: 'urgent',
+      priority: 'urgent',
       ntfyTags: 'bell,warning',
       icon: 'https://example.com/codex-icon.png',
     });
@@ -39,7 +39,7 @@ describe('buildNtfyRequest', () => {
     const req = buildNtfyRequest(ntfyConfig, {
       title: 'Claude',
       message: 'Done',
-      ntfyPriority: 'default',
+      priority: 'default',
       ntfyTags: '',
     });
     assert.equal(req.headers.Icon, 'https://example.com/icon.png');
@@ -49,7 +49,7 @@ describe('buildNtfyRequest', () => {
     const req = buildNtfyRequest(ntfyConfig, {
       title: 'Test',
       message: 'Hello world',
-      ntfyPriority: 'default',
+      priority: 'default',
       ntfyTags: '',
     });
     assert.equal(req.body, 'Hello world');
@@ -59,7 +59,7 @@ describe('buildNtfyRequest', () => {
     const req = buildNtfyRequest(ntfyConfig, {
       title: 'Test',
       message: 'msg',
-      ntfyPriority: 'default',
+      priority: 'default',
       ntfyTags: '',
     });
     assert.equal(req.headers.Tags, undefined);
@@ -68,7 +68,7 @@ describe('buildNtfyRequest', () => {
   it('strips trailing slash from server', () => {
     const req = buildNtfyRequest(
       { ...ntfyConfig, server: 'https://ntfy.sh/' },
-      { title: 'T', message: 'm', ntfyPriority: 'default', ntfyTags: '' }
+      { title: 'T', message: 'm', priority: 'default', ntfyTags: '' }
     );
     assert.equal(req.url, 'https://ntfy.sh/test-topic-123');
   });
