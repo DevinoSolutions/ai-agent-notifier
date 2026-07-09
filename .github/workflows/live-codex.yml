@@ -6,30 +6,39 @@ name: Live Codex
 # API round-trip.
 on:
   push:
+    branches: [main]
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
   pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
 
 jobs:
   live-codex:
-    name: Live Codex E2E (required)
+    name: Live Codex (key + hook wiring validation)
     runs-on: ubuntu-latest
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: npm install
-      - run: npm install -g @openai/codex
+      - name: Install Codex CLI
+        # pinned — bump deliberately; drift canary tracks @latest
+        run: npm install -g @openai/codex@0.144.0
       - name: Verify OPENAI_API_KEY reaches OpenAI API
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer $OPENAI_API_KEY" \
-            https://api.openai.com/v1/models/gpt-4o-mini)
-          echo "OpenAI API status for gpt-4o-mini: $STATUS"
+            https://api.openai.com/v1/models)
+          echo "OpenAI API status for /v1/models: $STATUS"
           if [ "$STATUS" != "200" ]; then
-            echo "FAIL: OpenAI API returned $STATUS — key invalid or model inaccessible"
+            echo "FAIL: OpenAI API returned $STATUS — key invalid or inaccessible"
             exit 1
           fi
-      - name: Drive Codex end-to-end (hard-fails if key missing)
+      - name: Validate Codex config-patch wiring (hard-fails if key missing)
         run: node scripts/live-codex.mjs

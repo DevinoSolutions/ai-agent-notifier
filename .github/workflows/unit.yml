@@ -4,18 +4,27 @@ on:
   push:
   pull_request:
 
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
+
 jobs:
   unit:
-    name: Unit (${{ matrix.os }})
+    name: Unit (${{ matrix.os }}, node ${{ matrix.node }})
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [18, 20, 22]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node }}
       - run: npm install
-      - run: npm test
+      - name: Unit + integration tests
+        run: npm test
+        env:
+          # optional: when the secret is set, the live Sentry envelope delivery test runs; absent = auto-skip
+          AAN_SENTRY_TEST_DSN: ${{ secrets.AAN_SENTRY_TEST_DSN }}
