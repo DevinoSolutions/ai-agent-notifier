@@ -10,7 +10,8 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "test:e2e": "node --test tests/e2e/*.test.mjs",
-    "toast:demo": "node scripts/toast-demo.mjs"
+    "toast:demo": "node scripts/toast-demo.mjs",
+    "version": "node scripts/sync-plugin-version.mjs && git add .claude-plugin"
   },
   "keywords": [
     "notifications",
@@ -48,7 +49,8 @@
     "src/",
     "cli/",
     "setup/",
-    "assets/",
+    "assets/icons/",
+    "assets/windows/",
     "config/",
     "hooks/",
     "commands/",
