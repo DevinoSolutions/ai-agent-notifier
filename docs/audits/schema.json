@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/DevinoSolutions/ai-agent-notifier/main/docs/audits/schema.json",
+  "title": "ai-agent-notifier audit pass record",
+  "description": "One file per audit pass (docs/audits/YYYY-MM-DD-<slug>.json). Findings are evidence-backed and carry their resolution status so future passes can diff against them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["pass", "date", "auditor", "scope", "verification_summary", "findings"],
+  "properties": {
+    "pass": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Sequential audit pass number for this repo"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "Date the pass concluded (YYYY-MM-DD)"
+    },
+    "auditor": {
+      "type": "string",
+      "description": "Who/what ran the pass, e.g. 'Claude Fable 5 + 4 Opus discovery subagents'"
+    },
+    "scope": {
+      "type": "string",
+      "description": "One sentence describing what was audited"
+    },
+    "knowledge_graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Graphify snapshot used to guide the pass, if any",
+      "properties": {
+        "nodes": { "type": "integer" },
+        "edges": { "type": "integer" },
+        "communities": { "type": "integer" },
+        "generated": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+      }
+    },
+    "verification_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checks_passed", "checks_failed", "blocked"],
+      "properties": {
+        "checks_passed": { "type": "array", "items": { "type": "string" } },
+        "checks_failed": { "type": "array", "items": { "type": "string" } },
+        "blocked": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Verifications that could not run and exactly why (missing env/permission)"
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "severity", "area", "evidence", "confidence", "status", "resolution"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}-\\d{2}$",
+          "description": "Stable ID: two-letter domain prefix + number (RT=runtime, CL=cli, TC=tests/ci, MD=meta/docs, SN=sentry/observability)"
+        },
+        "title": { "type": "string", "maxLength": 120 },
+        "severity": { "enum": ["critical", "high", "medium", "low"] },
+        "area": {
+          "type": "string",
+          "description": "Kebab-case tag, e.g. error-visibility, naming, config-schema, test-honesty, ci-cost, npm-payload"
+        },
+        "evidence": {
+          "type": "string",
+          "description": "file:line reference(s) plus exact quote or precise description at time of audit"
+        },
+        "why_it_matters": { "type": "string" },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "status": {
+          "enum": ["fixed", "deferred", "wont_fix", "documented"],
+          "description": "fixed = changed in this pass; deferred = TODO left in code; wont_fix = rejected with reason; documented = knowledge captured, no code change needed"
+        },
+        "resolution": {
+          "type": "string",
+          "description": "What was actually done (or why deferred/rejected), including new names for renames"
+        },
+        "verification": {
+          "type": "string",
+          "description": "How the resolution was verified (command/test), or what verification is still needed for deferred items"
+        }
+      }
+    }
+  }
+}
