@@ -1,5 +1,7 @@
 # CI/CD Pipeline Tests Implementation Plan
 
+*Historical design doc — the single ci.yml described here was later split into 9 per-job workflows (see .github/workflows/).*
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a cross-platform GitHub Actions pipeline that verifies the `ai-agent-notifier` CLI works for real on Linux, macOS, and Windows — installing the actual AI agents, patching their real configs, smoke-loading them, and exercising notification delivery without mocking.

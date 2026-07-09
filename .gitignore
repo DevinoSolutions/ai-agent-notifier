@@ -7,3 +7,13 @@ assets/icon.png
 .env
 .env.*
 !.env.example
+
+# Graphify knowledge-graph output — generated artifacts, never committed
+# (note: .graphifyignore is intentional config and stays tracked)
+graphify-out/
+.graphify_*
+
+# OS-generated cruft
+Thumbs.db
+.DS_Store
+Desktop.ini

@@ -1,5 +1,7 @@
 # CI/CD Pipeline Tests — Design
 
+*Historical design doc — the single ci.yml described here was later split into 9 per-job workflows (see .github/workflows/).*
+
 - **Date:** 2026-06-04
 - **Status:** Approved (pending written-spec review)
 - **Component:** GitHub Actions CI + real-world test suites

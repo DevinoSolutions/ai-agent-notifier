@@ -49,6 +49,7 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
 
 - **Desktop toast notifications** -- Windows (BurntToast), macOS (Notification Center), Linux (libnotify)
 - **Phone push notifications** -- Android & iOS via [ntfy](https://ntfy.sh) (free, no account required)
+- **Terminal bell** -- audible ding in the terminal that launched the agent (works over SSH/tmux)
 - **Click-to-focus** -- click the toast to jump back to the terminal or VS Code window (Windows)
 - **Per-tool branded icons** -- each tool gets its own logo in the notification
 - **One unified config** -- shared `~/.ai-agent-notifier/config.json` across all tools
@@ -153,19 +154,29 @@ Config lives at `~/.ai-agent-notifier/config.json`:
   "ntfy": {
     "enabled": true,
     "server": "https://ntfy.sh",
-    "topic": "ai-agent-notifier-<random>"
+    "topic": "ai-agent-notifier-<random>",
+    "click": ""
   },
   "toast": {
     "enabled": true,
     "clickToFocus": true
   },
+  "terminalBell": {
+    "enabled": true
+  },
+  "sentry": {
+    "enabled": false,
+    "dsn": ""
+  },
   "events": {
-    "task_complete": { "sound": "IM", "ntfyPriority": "default" },
-    "needs_input": { "sound": "Reminder", "ntfyPriority": "urgent" },
-    "session_start": { "sound": "Default", "ntfyPriority": "low" }
+    "task_complete": { "toastSound": "IM", "priority": "default" },
+    "needs_input": { "toastSound": "Reminder", "priority": "urgent" },
+    "session_start": { "toastSound": "Default", "priority": "low", "terminalBellEnabled": false }
   }
 }
 ```
+
+`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent. `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound and is ignored on macOS/Linux; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
 
 ### ntfy -- Phone Push Notifications
 
@@ -177,11 +188,15 @@ Config lives at `~/.ai-agent-notifier/config.json`:
 
 ### Per-Event Settings
 
-| Event | Default Sound | ntfy Priority | Description |
+| Event | Default `toastSound` | Default `priority` | Description |
 |-------|:------------:|:-------------:|-------------|
 | `task_complete` | IM | default | Agent finished its task |
 | `needs_input` | Reminder | urgent | Agent needs your input or permission |
-| `session_start` | Default | low | New session started (disabled by default) |
+| `session_start` | Default | low | New session started (all channels off by default) |
+
+### Error visibility
+
+Hook and channel errors never interrupt your agent -- they're appended to `~/.ai-agent-notifier/errors.log` and surfaced by `npx ai-agent-notifier status`, so a misconfigured toast backend or unreachable ntfy topic shows up as a logged error instead of a silent no-op. Set `sentry.enabled` to `true` (with a `sentry.dsn`) to also mirror those errors to [Sentry](https://sentry.io) through a built-in, zero-dependency envelope client: no SDK is bundled, no telemetry is collected, and nothing leaves your machine unless you opt in -- only error data is sent.
 
 ## How It Works
 
@@ -253,7 +268,7 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
       <td><strong>Unit</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/unit.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/unit.yml/badge.svg?branch=main" alt="Unit" /></a></td>
       <td>Linux · macOS · Windows</td>
-      <td>117 unit + integration tests against the real exported code (not inline copies)</td>
+      <td>The full unit + integration suite against the real exported code (not inline copies)</td>
     </tr>
     <tr>
       <td><strong>E2E real-world</strong></td>
@@ -311,7 +326,7 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
 ### Run it yourself
 
 ```bash
-npm test            # offline: 117 unit + integration tests
+npm test            # offline: the full unit + integration suite
 npm run test:e2e    # real ntfy.sh round-trip, needs network
 npm run toast:demo  # fire real desktop toasts, every event
 ```
