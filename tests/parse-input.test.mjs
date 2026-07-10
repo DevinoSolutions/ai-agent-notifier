@@ -13,12 +13,43 @@ describe('parseInput', () => {
     assert.equal(result.projectName, 'my-project');
     assert.equal(result.sessionId, 's1');
     assert.equal(result.rawEvent, 'Stop');
+    // F3 additive fields default to empty strings when the hook omits them.
+    assert.equal(result.transcriptPath, '');
+    assert.equal(result.message, '');
   });
 
   it('normalizes Claude Code Notification event', () => {
     const raw = { session_id: 's2', cwd: '/projects/app', hook_event_name: 'Notification' };
     const result = parseInput(raw, 'claude');
     assert.equal(result.event, 'needs_input');
+  });
+
+  it('captures transcript_path for the rich-content reader (F3)', () => {
+    const raw = {
+      session_id: 's3', cwd: '/projects/app', hook_event_name: 'Stop',
+      transcript_path: '/home/user/.claude/projects/app/abc.jsonl',
+    };
+    const result = parseInput(raw, 'claude');
+    assert.equal(result.transcriptPath, '/home/user/.claude/projects/app/abc.jsonl');
+  });
+
+  it('captures a Claude Notification message string (F3)', () => {
+    const raw = {
+      session_id: 's4', cwd: '/projects/app', hook_event_name: 'Notification',
+      message: 'Claude needs your permission to run npm install',
+    };
+    const result = parseInput(raw, 'claude');
+    assert.equal(result.event, 'needs_input');
+    assert.equal(result.message, 'Claude needs your permission to run npm install');
+  });
+
+  it('drops a non-string message so a structured payload cannot leak downstream (F3)', () => {
+    const raw = {
+      session_id: 's5', cwd: '/projects/app', hook_event_name: 'Notification',
+      message: { title: 'nope', body: 'structured' },
+    };
+    const result = parseInput(raw, 'claude');
+    assert.equal(result.message, '');
   });
 
   it('normalizes Codex Stop event', () => {
