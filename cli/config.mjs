@@ -14,6 +14,20 @@ async function configNtfy(rl, config) {
   }
 }
 
+async function configWebhook(rl, config) {
+  log('\n  Webhook Configuration\n', 'bold');
+  log('  Formats: generic, slack, discord, telegram', 'dim');
+  if (!config.webhook) config.webhook = { enabled: false, url: '', format: 'generic' };
+  config.webhook.enabled = await askYN(rl, 'Enable webhook?', config.webhook.enabled);
+  if (config.webhook.enabled) {
+    config.webhook.url = await ask(rl, 'Webhook URL', config.webhook.url);
+    config.webhook.format = await ask(rl, 'Format', config.webhook.format || 'generic');
+    if (config.webhook.format === 'telegram') {
+      config.webhook.chatId = await ask(rl, 'Telegram chat_id', config.webhook.chatId);
+    }
+  }
+}
+
 async function configSounds(rl, config) {
   log('\n  Sound Configuration\n', 'bold');
   log('  Windows sounds: Default, IM, Mail, Reminder, SMS, Alarm', 'dim');
@@ -81,20 +95,23 @@ export async function run(section) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   if (section === 'ntfy') await configNtfy(rl, config);
+  else if (section === 'webhook') await configWebhook(rl, config);
   else if (section === 'sounds') await configSounds(rl, config);
   else if (section === 'events') await configEvents(rl, config);
   else if (section === 'sentry') await configSentry(rl, config);
   else {
     log('\n  ai-agent-notifier config\n', 'bold');
-    log('  1. ntfy / webhooks');
-    log('  2. Sounds');
-    log('  3. Events');
-    log('  4. Sentry');
-    const choice = await ask(rl, 'Choose (1-4)', '1');
+    log('  1. ntfy');
+    log('  2. Webhook');
+    log('  3. Sounds');
+    log('  4. Events');
+    log('  5. Sentry');
+    const choice = await ask(rl, 'Choose (1-5)', '1');
     if (choice === '1') await configNtfy(rl, config);
-    else if (choice === '2') await configSounds(rl, config);
-    else if (choice === '3') await configEvents(rl, config);
-    else if (choice === '4') await configSentry(rl, config);
+    else if (choice === '2') await configWebhook(rl, config);
+    else if (choice === '3') await configSounds(rl, config);
+    else if (choice === '4') await configEvents(rl, config);
+    else if (choice === '5') await configSentry(rl, config);
   }
 
   saveConfig(config, getConfigPath());

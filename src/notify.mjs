@@ -8,6 +8,8 @@ import { parseInput } from './parse-input.mjs';
 import { route } from './router.mjs';
 import { loadConfig } from './config-loader.mjs';
 import { sendNtfy } from './ntfy.mjs';
+import { sendWebhook } from './webhook.mjs';
+import { deriveRichViews } from './transcript.mjs';
 import { sendBell } from './bell.mjs';
 import { resolveToastBackend } from './platforms/index.mjs';
 import { enableSentryMirror, logHookError, flushErrorReporting } from './error-log.mjs';
@@ -89,6 +91,14 @@ function trackChannel(channel, promise) {
 }
 
 async function main() {
+  // Function-scoped, not built at the write site: the catch branch and the
+  // dedup-skip / unmapped-event early exits must fall through to a plain '{}\n'
+  // so a crash or a suppressed duplicate never rings. Only the fully-successful
+  // claude path (after Promise.all, below) upgrades it to a terminalSequence
+  // bell — which is also why claude no longer spawns bell.mjs: emitting both
+  // would double-ring tmux via the TMUX_PANE pane-tty on Claude Code >=2.1.141,
+  // the exact bug this path fixes.
+  let responseBody = '{}\n';
   try {
     const args = parseArgs(process.argv);
     const stdinData = await readStdin();
@@ -129,35 +139,66 @@ async function main() {
     // Check per-event overrides
     const eventConfig = config.events?.[event.event] || {};
 
+    // Per-channel message views: for a claude task_complete/needs_input this can
+    // upgrade the generic "Task complete" to the assistant's actual words, gated
+    // per channel by richContent (toast/webhook default ON, ntfy default OFF for
+    // privacy). Every other source/event returns the generic notification for
+    // all three channels. Derivation only reads the transcript when a
+    // rich-capable channel is actually enabled, so codex/cursor/gemini and
+    // fully-disabled runs pay no I/O.
+    const views = deriveRichViews(event, config, eventConfig, notification);
+
     const tasks = [];
 
     // Toast
     if (config.toast?.enabled !== false && eventConfig.toastEnabled !== false) {
       const sendToast = await resolveToastBackend();
-      tasks.push(trackChannel('toast', sendToast(notification)));
+      tasks.push(trackChannel('toast', sendToast(views.toast)));
     }
 
     // ntfy
     if (config.ntfy?.enabled && config.ntfy?.topic && eventConfig.ntfyEnabled !== false) {
-      tasks.push(trackChannel('ntfy', sendNtfy(config.ntfy, notification)));
+      tasks.push(trackChannel('ntfy', sendNtfy(config.ntfy, views.ntfy)));
+    }
+
+    // webhook
+    if (config.webhook?.enabled && config.webhook?.url && eventConfig.webhookEnabled !== false) {
+      tasks.push(trackChannel('webhook', sendWebhook(config.webhook, views.webhook)));
     }
 
     // Terminal bell (best-effort by design: `ok: false` here usually just
     // means "no controlling terminal", so only unexpected throws are logged)
     if (config.terminalBell?.enabled !== false && eventConfig.terminalBellEnabled !== false) {
-      tasks.push(trackChannel('bell', sendBell()));
+      if (event.source === 'claude') {
+        // Claude Code >=2.1.141 rings via the terminalSequence set on
+        // responseBody after Promise.all — its own terminal write path is
+        // tmux/screen/Windows-safe. Spawning bell.mjs too would double-ring in
+        // tmux. Still report `bell` as a channel result so it stays observable.
+        tasks.push(trackChannel('bell', Promise.resolve(true)));
+      } else {
+        tasks.push(trackChannel('bell', sendBell()));
+      }
     }
 
     await Promise.all(tasks);
+
+    // Ring the claude bell by handing Claude Code a bare BEL to write through
+    // its own terminal path (see the responseBody comment above). Same gate as
+    // the bell dispatch, and only reachable on the fully-successful path — never
+    // after a catch, a dedup-skip, or an unmapped event.
+    if (event.source === 'claude' && config.terminalBell?.enabled !== false && eventConfig.terminalBellEnabled !== false) {
+      responseBody = JSON.stringify({ terminalSequence: '\x07' }) + '\n';
+    }
   } catch (err) {
     // Never crash — hooks must not block the AI tool. But never hide it
     // either: errors.log + `status` (+ Sentry when enabled) make it visible.
     logHookError('hook', err);
   }
   await flushErrorReporting();
-  // Write empty JSON response — some tools (Cursor) expect stdout output
-  // and may retry the hook if they get nothing.
-  process.stdout.write('{}\n');
+  // Write the hook response — normally '{}\n' (some tools, e.g. Cursor, expect
+  // stdout output and may retry if they get nothing); on the successful claude
+  // bell path it carries the terminalSequence set above.
+  process.stdout.write(responseBody);
   process.exit(0);
 }
 

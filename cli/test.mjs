@@ -1,6 +1,7 @@
 // cli/test.mjs
 import { loadConfigResult } from '../src/config-loader.mjs';
 import { sendNtfy } from '../src/ntfy.mjs';
+import { sendWebhook } from '../src/webhook.mjs';
 import { resolveToastBackend } from '../src/platforms/index.mjs';
 import { sendBell } from '../src/bell.mjs';
 import { c, spinner } from './ui.mjs';
@@ -28,6 +29,10 @@ export async function run(channel) {
 
   const doToast = !channel || channel === 'toast' || channel === 'both';
   const doNtfy = !channel || channel === 'ntfy' || channel === 'both';
+  // Webhook is off by default, so the all-channels run only touches it when the
+  // user has enabled it (unlike ntfy, which defaults on). Explicit `test webhook`
+  // always runs it and reports "not configured" if it isn't set up.
+  const doWebhook = channel === 'webhook' || (!channel && config.webhook?.enabled);
   const doBell = !channel || channel === 'bell';
 
   // A tested channel that fails to deliver must fail the command (exit 1) — bell
@@ -50,6 +55,17 @@ export async function run(channel) {
       else { spin.fail('ntfy failed'); failed = true; }
     } else {
       console.log(`  ${c.warn('⚠')} ${c.muted('ntfy not configured — run')} ${c.white('ai-agent-notifier setup')} ${c.muted('first')}`);
+    }
+  }
+
+  if (doWebhook) {
+    if (config.webhook?.enabled && config.webhook?.url) {
+      const spin = spinner('Sending webhook...');
+      const ok = await sendWebhook(config.webhook, testNotif);
+      if (ok) spin.stop('Webhook sent');
+      else { spin.fail('Webhook failed'); failed = true; }
+    } else {
+      console.log(`  ${c.warn('⚠')} ${c.muted('webhook not configured — run')} ${c.white('ai-agent-notifier config')} ${c.muted('first')}`);
     }
   }
 

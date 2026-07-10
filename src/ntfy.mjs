@@ -33,6 +33,7 @@ export function sendNtfy(ntfyConfig, notification) {
 
     const req = transport.request(parsed, {
       method: 'POST',
+      agent: false, // no keep-alive socket may outlive the hook's process.exit() (see sentry.mjs)
       headers: { ...headers, 'Content-Type': 'text/plain; charset=utf-8' },
       timeout: 5000,
     }, (res) => {
