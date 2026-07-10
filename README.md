@@ -48,9 +48,13 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
 ## Features
 
 - **Desktop toast notifications** -- Windows (BurntToast), macOS (Notification Center), Linux (libnotify)
+- **WSL-native toasts** -- real Windows toast notifications from inside WSL, no Linux notification daemon needed
 - **Phone push notifications** -- Android & iOS via [ntfy](https://ntfy.sh) (free, no account required)
+- **Webhook notifications** -- Slack, Discord, Telegram, or any HTTP endpoint, with an optional auth header
+- **Rich notification content** -- Claude Code toasts and webhooks show what the agent actually said or asked, not a generic line
 - **Terminal bell** -- audible ding in the terminal that launched the agent (works over SSH/tmux)
 - **Click-to-focus** -- click the toast to jump back to the terminal or VS Code window (Windows)
+- **Codex approval alerts** -- get notified the instant Codex asks for permission, not just when it finishes
 - **Per-tool branded icons** -- each tool gets its own logo in the notification
 - **One unified config** -- shared `~/.ai-agent-notifier/config.json` across all tools
 - **Atomic deduplication** -- prevents double notifications (e.g. Cursor's duplicate hook fires)
@@ -96,7 +100,7 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
   </tr>
 </table>
 
-All four tools are wired automatically by the setup wizard. No manual config editing needed.
+All four tools are wired automatically by the setup wizard. No manual config editing needed. Codex's `PermissionRequest` hook fires the same "needs your input" alert when Codex asks for approval to run a command -- verified with Codex CLI >=0.144.0.
 
 ### VS Code Native Support
 
@@ -140,7 +144,7 @@ curl -fsSL https://raw.githubusercontent.com/DevinoSolutions/ai-agent-notifier/m
 ```
 ai-agent-notifier setup          # First-time setup wizard
 ai-agent-notifier status         # Show wired tools, config, backends
-ai-agent-notifier test [channel] # Fire test notification (toast | ntfy | both)
+ai-agent-notifier test [channel] # Fire test notification (toast | ntfy | webhook | bell | both)
 ai-agent-notifier config         # Interactive settings menu
 ai-agent-notifier uninstall      # Remove hooks from all tools
 ```
@@ -164,6 +168,11 @@ Config lives at `~/.ai-agent-notifier/config.json`:
   "terminalBell": {
     "enabled": true
   },
+  "webhook": {
+    "enabled": false,
+    "url": "",
+    "format": "generic"
+  },
   "sentry": {
     "enabled": false,
     "dsn": ""
@@ -176,7 +185,7 @@ Config lives at `~/.ai-agent-notifier/config.json`:
 }
 ```
 
-`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent. `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound and is ignored on macOS/Linux; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
+`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent -- for Claude Code (>=2.1.141) it rings through Claude Code's own terminal write path (hook JSON `terminalSequence`), which is safe in tmux, GNU screen, and on Windows per Claude Code's docs; other agents get a direct TTY/console bell. `webhook` posts to Slack, Discord, Telegram, or any URL (see below). `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound and is ignored on macOS/Linux; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
 
 ### ntfy -- Phone Push Notifications
 
@@ -185,6 +194,75 @@ Config lives at `~/.ai-agent-notifier/config.json`:
 1. Install the ntfy app ([Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy) / [iOS](https://apps.apple.com/app/ntfy/id1625396347))
 2. Subscribe to your topic (shown during setup)
 3. All your AI tools' notifications appear in one stream
+
+### Webhook -- Slack, Discord, Telegram, or anything
+
+Set `webhook.enabled: true` and a `webhook.url` to POST a notification to any HTTP endpoint. `format` selects the payload shape:
+
+**Slack:**
+```json
+{
+  "webhook": {
+    "enabled": true,
+    "url": "https://hooks.slack.com/services/...",
+    "format": "slack"
+  }
+}
+```
+
+**Discord:**
+```json
+{
+  "webhook": {
+    "enabled": true,
+    "url": "https://discord.com/api/webhooks/...",
+    "format": "discord"
+  }
+}
+```
+
+**Telegram:**
+```json
+{
+  "webhook": {
+    "enabled": true,
+    "url": "https://api.telegram.org/bot<token>/sendMessage",
+    "format": "telegram",
+    "chatId": "123456789"
+  }
+}
+```
+
+**Generic (anything else):**
+```json
+{
+  "webhook": {
+    "enabled": true,
+    "url": "https://example.com/hook",
+    "format": "generic",
+    "authorization": "Bearer <token>"
+  }
+}
+```
+Generic POSTs `{title, message, source, project, event, timestamp}` as JSON. `authorization`, if set, is sent as the `Authorization` header for any format, not just generic.
+
+Webhook failures are logged with the URL's origin only, never the full URL -- a Slack/Discord webhook URL or a Telegram bot token is a secret, and errors.log can be mirrored to Sentry.
+
+Test it with `ai-agent-notifier test webhook`, or turn it off for one event type with `"events": {"task_complete": {"webhookEnabled": false}}`.
+
+### Rich notification content
+
+For Claude Code, toast and webhook notifications show what actually happened instead of a generic "task complete" line: a "needs input" notification carries Claude's own question, and a "task complete" notification carries the last assistant message, both read from the Claude Code transcript and trimmed to a short snippet. Session-start notifications stay generic (nothing to show yet). Other agents (Codex, Cursor, Gemini) always get the generic text -- transcript reading is Claude Code-only.
+
+Controlled per channel:
+
+| Channel | Config key | Default |
+|---------|-----------|:-------:|
+| Toast | `toast.richContent` | `true` |
+| Webhook | `webhook.richContent` | `true` |
+| ntfy | `ntfy.richContent` | `false` |
+
+`ntfy.richContent` defaults to **false** for privacy: the default `ntfy.sh` server is public, ntfy topic names are guessable rather than access-controlled secrets, and a snippet of your conversation would leak to anyone who guesses or stumbles on your topic. Only enable `ntfy.richContent` if you run your own private ntfy server, or you've deliberately accepted that risk on the public one.
 
 ### Per-Event Settings
 
@@ -206,8 +284,12 @@ Each AI tool's hook system pipes event data to `notify.mjs`:
 Hook fires (stdin JSON + --source flag)
   -> parse-input.mjs   (normalize across tools)
   -> router.mjs        (map event to notification type)
-  -> platform toast    (Windows / macOS / Linux)
+  -> transcript.mjs    (Claude Code only: derive rich message text)
+  -> platform toast    (Windows / macOS / Linux / WSL)
   -> ntfy push         (phone notification)
+  -> webhook POST      (Slack / Discord / Telegram / generic)
+  -> terminal bell     (Claude Code: terminalSequence in the hook reply;
+                        other tools: BEL to the controlling terminal)
 ```
 
 ## Platform Details
@@ -227,7 +309,14 @@ Hook fires (stdin JSON + --source flag)
 ### Linux
 
 - Uses `notify-send` (libnotify) -- available on most desktop distributions
-- Fails silently on headless or WSL systems without a GUI
+- Fails silently on headless systems without a GUI (see WSL below for WSL2)
+
+### WSL
+
+- Auto-detected -- no config needed
+- Toast notifications route to a real Windows toast via PowerShell interop (`powershell.exe`/`pwsh.exe` across the `/mnt/c` boundary), not `notify-send`/D-Bus
+- Needs WSL2 interop enabled and a Windows PowerShell present -- both are on by default
+- Terminal bell and ntfy behave exactly as on native Linux
 
 ## Requirements
 

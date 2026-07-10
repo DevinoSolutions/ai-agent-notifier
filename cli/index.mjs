@@ -69,8 +69,8 @@ function printHelp(c, banner) {
   console.log(`  ${c.bold('Commands:')}`);
   console.log(`    ${c.accent('setup')}             ${c.white('First-time setup wizard')}`);
   console.log(`    ${c.accent('status')}            ${c.white('Show wired tools, ntfy topic, toast backend')}`);
-  console.log(`    ${c.accent('test')} ${c.muted('[channel]')}    ${c.white('Fire test notification')} ${c.muted('(toast | ntfy | bell | both)')}`);
-  console.log(`    ${c.accent('config')} ${c.muted('[section]')}  ${c.white('Interactive settings')} ${c.muted('(ntfy | sounds | events | sentry)')}`);
+  console.log(`    ${c.accent('test')} ${c.muted('[channel]')}    ${c.white('Fire test notification')} ${c.muted('(toast | ntfy | webhook | bell | both)')}`);
+  console.log(`    ${c.accent('config')} ${c.muted('[section]')}  ${c.white('Interactive settings')} ${c.muted('(ntfy | webhook | sounds | events | sentry)')}`);
   console.log(`    ${c.accent('uninstall')}         ${c.white('Remove hooks from all tools')}`);
   console.log(`    ${c.muted('--version, -v')}     ${c.white('Show version and check for updates')}`);
   console.log();

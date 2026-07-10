@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WIN_DIR = path.join(repoRoot, 'assets', 'windows');
-const SCRIPTS = ['toast.ps1', 'bell.ps1', 'focus-window.ps1'];
+const SCRIPTS = ['toast.ps1', 'bell.ps1', 'focus-window.ps1', 'toast-wsl.ps1'];
 
 // True only when a usable pwsh is on PATH (spawn succeeds). Lets the parse checks
 // skip cleanly on runners without PowerShell 7 installed.

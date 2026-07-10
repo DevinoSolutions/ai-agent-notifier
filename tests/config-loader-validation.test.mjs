@@ -75,15 +75,59 @@ describe('loadConfigResult', () => {
     assert.equal(config.events.needs_input.priority, 'urgent', 'default kept');
   });
 
+  it('webhook: unknown keys are reported but kept', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      webhook: { enabled: true, url: 'https://example.com/hook', foo: 'bar' },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem.type, 'validate');
+    assert.match(problem.message, /unknown key "webhook\.foo"/);
+    assert.equal(config.webhook.foo, 'bar', 'unknown key kept');
+  });
+
+  it('webhook: wrong-typed keys are reported AND reverted to defaults', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      webhook: { enabled: 'yes', url: 'https://example.com/hook' },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem.type, 'validate');
+    assert.match(problem.message, /"webhook\.enabled" must be a boolean/);
+    assert.equal(config.webhook.enabled, false, 'bad value reverted to default');
+    assert.equal(config.webhook.url, 'https://example.com/hook', 'good sibling value kept');
+  });
+
+  it('webhook: an invalid format value is rejected with the allowed list', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      webhook: { enabled: true, url: 'https://example.com/hook', format: 'teams' },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem.type, 'validate');
+    assert.match(problem.message, /"webhook\.format" must be one of generic\|slack\|discord\|telegram/);
+    assert.equal(config.webhook.format, 'generic', 'default kept');
+  });
+
+  it('webhook: telegram format without a chatId is flagged but the format is kept', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      webhook: { enabled: true, url: 'https://api.telegram.org/botTOKEN/sendMessage', format: 'telegram' },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem.type, 'validate');
+    assert.match(problem.message, /"webhook\.format" is "telegram" but "webhook\.chatId" is missing/);
+    assert.equal(config.webhook.format, 'telegram', 'format kept so the send-time hint fires');
+  });
+
   it('a fully valid user config produces no problem', () => {
     fs.writeFileSync(configPath, JSON.stringify({
       ntfy: { enabled: true, topic: 'aan-test' },
+      webhook: { enabled: true, url: 'https://hooks.slack.com/services/T/B/X', format: 'slack' },
       sentry: { enabled: false, dsn: '' },
-      events: { task_complete: { toastSound: 'Mail', priority: 'high' } },
+      events: { task_complete: { toastSound: 'Mail', priority: 'high', webhookEnabled: false } },
     }), 'utf8');
     const { config, problem } = loadConfigResult(configPath);
     assert.equal(problem, null);
+    assert.equal(config.webhook.format, 'slack');
     assert.equal(config.events.task_complete.toastSound, 'Mail');
     assert.equal(config.events.task_complete.priority, 'high');
+    assert.equal(config.events.task_complete.webhookEnabled, false);
   });
 });

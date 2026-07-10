@@ -3,14 +3,22 @@
     "enabled": true,
     "server": "https://ntfy.sh",
     "topic": "",
-    "click": ""
+    "click": "",
+    "richContent": false
   },
   "toast": {
     "enabled": true,
-    "clickToFocus": true
+    "clickToFocus": true,
+    "richContent": true
   },
   "terminalBell": {
     "enabled": true
+  },
+  "webhook": {
+    "enabled": false,
+    "url": "",
+    "format": "generic",
+    "richContent": true
   },
   "sentry": {
     "enabled": false,

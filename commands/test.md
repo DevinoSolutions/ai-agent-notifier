@@ -3,10 +3,10 @@ name: test
 description: Fire a test notification to verify ai-agent-notifier is working
 ---
 
-Send a test notification through all channels. Execute this in the terminal:
+Send a test notification through all enabled channels. Execute this in the terminal:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/cli/index.mjs" test
 ```
 
-This sends a test toast notification and ntfy push to verify everything is wired correctly.
+This fires a test toast, ntfy push, webhook, and terminal bell (each only if enabled/configured) to verify everything is wired correctly. Pass a channel name to test one: `toast | ntfy | webhook | bell`.
