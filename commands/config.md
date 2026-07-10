@@ -9,4 +9,4 @@ Open the ai-agent-notifier interactive configuration menu. Execute this in the t
 node "${CLAUDE_PLUGIN_ROOT}/cli/index.mjs" config
 ```
 
-Sections: `ntfy` (push notification settings), `sounds` (per-event `toastSound` values, Windows BurntToast only), `tools` (enable/disable tools), `events` (per-event overrides).
+Sections: `ntfy` (push notification settings), `webhook` (Slack/Discord/Telegram/generic endpoint), `sounds` (per-event `toastSound` values, Windows BurntToast only), `events` (per-event overrides), `sentry` (opt-in error reporting).

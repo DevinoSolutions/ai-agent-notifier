@@ -37,12 +37,14 @@ const EVENT_OVERRIDE_TYPES = {
   toastEnabled: 'boolean',
   ntfyEnabled: 'boolean',
   terminalBellEnabled: 'boolean',
+  webhookEnabled: 'boolean',
 };
 const RENAMED_KEYS = {
   sound: 'toastSound',
   ntfyPriority: 'priority',
 };
 const PRIORITY_VALUES = ['min', 'low', 'default', 'high', 'urgent'];
+const FORMAT_VALUES = ['generic', 'slack', 'discord', 'telegram'];
 
 // Shallow schema check. Wrong-typed keys are DELETED from the user object
 // (defaults win) and reported, so a bad value can never poison the runtime.
@@ -67,10 +69,26 @@ function validateUserConfig(user) {
     }
   };
 
-  checkBlock('ntfy', { enabled: 'boolean', server: 'string', topic: 'string', click: 'string', icon: 'string' });
-  checkBlock('toast', { enabled: 'boolean', clickToFocus: 'boolean' });
+  checkBlock('ntfy', { enabled: 'boolean', server: 'string', topic: 'string', click: 'string', icon: 'string', richContent: 'boolean' });
+  checkBlock('toast', { enabled: 'boolean', clickToFocus: 'boolean', richContent: 'boolean' });
   checkBlock('terminalBell', { enabled: 'boolean' });
+  checkBlock('webhook', { enabled: 'boolean', url: 'string', format: 'string', chatId: 'string', authorization: 'string', richContent: 'boolean' });
   checkBlock('sentry', { enabled: 'boolean', dsn: 'string' });
+
+  // Webhook format is a fixed preset enum (like event priority): an invalid
+  // value is dropped so the 'generic' default wins. Telegram addresses the
+  // message by chatId — flag its absence but keep the format so the missing
+  // chatId surfaces as a logged hint at send time, not a silent drop.
+  const webhook = user.webhook;
+  if (webhook && typeof webhook === 'object' && !Array.isArray(webhook)) {
+    if (typeof webhook.format === 'string' && !FORMAT_VALUES.includes(webhook.format)) {
+      issues.push(`"webhook.format" must be one of ${FORMAT_VALUES.join('|')}, got "${webhook.format}"`);
+      delete webhook.format;
+    }
+    if (webhook.format === 'telegram' && !webhook.chatId) {
+      issues.push('"webhook.format" is "telegram" but "webhook.chatId" is missing');
+    }
+  }
 
   if (user.events !== undefined) {
     if (typeof user.events !== 'object' || user.events === null) {
@@ -102,7 +120,7 @@ function validateUserConfig(user) {
     }
   }
 
-  const knownTop = ['ntfy', 'toast', 'terminalBell', 'sentry', 'events', 'sources'];
+  const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'events', 'sources'];
   for (const key of Object.keys(user)) {
     if (!knownTop.includes(key)) issues.push(`unknown key "${key}"`);
   }

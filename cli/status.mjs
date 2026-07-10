@@ -12,6 +12,12 @@ import { c, box, kv, sectionHeader } from './ui.mjs';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json');
 
+// Webhook URLs are secrets (Slack/Discord tokens, Telegram bot token in the
+// path), so status shows the origin only — never the full URL.
+function webhookOrigin(url) {
+  try { return new URL(url).origin; } catch { return 'invalid URL'; }
+}
+
 // Wired-state detection uses the SAME predicate as the patcher (detectManagedEvents),
 // so every shape we write — including Cursor's flat { command } entries — is
 // recognised here. Never throws: an unreadable/corrupt tool config reads as an error.
@@ -81,6 +87,9 @@ export async function run() {
     kv('Sentry', sentryValue),
     kv('ntfy', ''),
     `${''.padEnd(15)} ${ntfyValue}`,
+    ...(config.webhook?.enabled && config.webhook?.url
+      ? [kv('Webhook', c.success(webhookOrigin(config.webhook.url)))]
+      : []),
     '---',
     sectionHeader('Tools'),
     ...toolLines,
