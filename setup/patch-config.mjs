@@ -10,7 +10,7 @@ const MANAGED_TAG = 'ai-agent-notifier';
 // (e.g. cleaning an event patch never wrote). Change an event list in one place.
 export const TOOL_EVENTS = {
   claude: { dir: '.claude', file: 'settings.json', label: 'Claude Code', events: ['Notification', 'Stop'] },
-  codex: { dir: '.codex', file: 'hooks.json', label: 'Codex CLI', events: ['Stop', 'SessionStart'] },
+  codex: { dir: '.codex', file: 'hooks.json', label: 'Codex CLI', events: ['Stop', 'SessionStart', 'PermissionRequest'] },
   cursor: { dir: '.cursor', file: 'hooks.json', label: 'Cursor IDE', events: ['stop'] },
   gemini: { dir: '.gemini', file: 'settings.json', label: 'Gemini CLI', events: ['AfterAgent', 'Notification'] },
 };
@@ -237,7 +237,7 @@ export function patchCodex(codexDir, notifyPath, backupDir) {
 
   // Codex uses strict schema — no _managed_by, must include statusMessage.
   // Timeout is in seconds. Hooks only fire in interactive TUI (not exec mode).
-  // Both events differ only by the --event arg, so derive them from TOOL_EVENTS.
+  // These events differ only by the --event arg, so derive them from TOOL_EVENTS.
   const hookByEvent = {};
   for (const event of TOOL_EVENTS.codex.events) {
     const hook = makeHookEntry(safePath, 'codex', {
