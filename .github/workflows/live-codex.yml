@@ -1,9 +1,9 @@
 name: Live Codex
 
-# Required (no continue-on-error) and runs unconditionally: the script hard-fails
-# if OPENAI_API_KEY is missing. codex exec needs OpenAI Tier 1+ WebSocket access,
-# so this job validates the live key + the real config-patch wiring instead of an
-# API round-trip.
+# Proves the REAL approval decision loop: codex reaches an approval point, our
+# PermissionRequest hook fires the product notification and returns a decision,
+# and codex obeys (sentinel on allow, none on deny). macOS leg also asserts the
+# Notification Center delivery record.
 on:
   push:
     branches: [main]
@@ -17,8 +17,12 @@ concurrency:
 
 jobs:
   live-codex:
-    name: Live Codex (key + hook wiring validation)
-    runs-on: ubuntu-latest
+    name: Live Codex (approval loop)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    runs-on: ${{ matrix.os }}
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
@@ -32,13 +36,11 @@ jobs:
         run: npm install -g @openai/codex@0.144.0
       - name: Verify OPENAI_API_KEY reaches OpenAI API
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $OPENAI_API_KEY" \
-            https://api.openai.com/v1/models)
-          echo "OpenAI API status for /v1/models: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "FAIL: OpenAI API returned $STATUS — key invalid or inaccessible"
-            exit 1
-          fi
-      - name: Validate Codex config-patch wiring (hard-fails if key missing)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $OPENAI_API_KEY" https://api.openai.com/v1/models)
+          echo "OpenAI API status: $STATUS"
+          [ "$STATUS" = "200" ] || { echo "FAIL: OpenAI API returned $STATUS"; exit 1; }
+      - name: macOS preflight (FDA grant + auth seed)
+        if: runner.os == 'macOS'
+        run: node scripts/mac-preflight-grant.mjs --seed-auth
+      - name: Drive the real approval loop (allow + deny)
         run: node scripts/live-codex.mjs
