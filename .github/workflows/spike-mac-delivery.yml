@@ -1,0 +1,74 @@
+name: Spike Mac Delivery (scratch — delete before merge)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/mac-real-ux]
+    paths: ['.github/workflows/spike-mac-delivery.yml']
+
+jobs:
+  spike:
+    name: Spike — NC DB delivery unknowns (macos-15)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Q0 — Preflight (SIP off, OS version, DB path candidates)
+        run: |
+          echo "== sw_vers =="; sw_vers
+          echo "== csrutil status =="; csrutil status || true
+          echo "== Sequoia DB candidate =="
+          SEQ="$HOME/Library/Group Containers/group.com.apple.usernoted/db2/db"
+          echo "$SEQ"; ls -la "$SEQ" 2>&1 || echo "(absent)"
+          echo "== pre-Sequoia DB candidate =="
+          LEG="$(getconf DARWIN_USER_DIR)com.apple.notificationcenter/db2/db"
+          echo "$LEG"; ls -la "$LEG" 2>&1 || echo "(absent)"
+
+      - name: Q1 — Does osascript silent-drop BEFORE any grant/seed?
+        run: |
+          MARKER="spike-predrop-$GITHUB_RUN_ID"
+          osascript -e "display notification \"$MARKER\" with title \"AAN-SPIKE\"" ; echo "osascript exit: $?"
+          sleep 3
+          # Try to read WITHOUT an FDA grant first — establishes the TCC baseline.
+          SEQ="$HOME/Library/Group Containers/group.com.apple.usernoted/db2/db"
+          echo "== raw read attempt (expect TCC block on Sequoia) =="
+          sqlite3 "file:$SEQ?mode=ro&immutable=1" "select count(*) from record;" 2>&1 || echo "(blocked/unreadable)"
+
+      - name: Q2 — FDA self-grant, then read the Sequoia DB
+        run: |
+          for db in "/Library/Application Support/com.apple.TCC/TCC.db" "$HOME/Library/Application Support/com.apple.TCC/TCC.db"; do
+            sudo sqlite3 "$db" "INSERT OR REPLACE INTO access (service,client,client_type,auth_value,auth_reason,auth_version,flags,last_modified) VALUES ('kTCCServiceSystemPolicyAllFiles','/usr/bin/sqlite3',1,2,4,1,0,strftime('%s','now'));" 2>&1 || true
+            sudo sqlite3 "$db" "INSERT OR REPLACE INTO access (service,client,client_type,auth_value,auth_reason,auth_version,flags,last_modified) VALUES ('kTCCServiceSystemPolicyAllFiles','/bin/bash',1,2,4,1,0,strftime('%s','now'));" 2>&1 || true
+          done
+          sudo pkill -HUP tccd || true
+          sleep 2
+          SEQ="$HOME/Library/Group Containers/group.com.apple.usernoted/db2/db"
+          echo "== schema =="; sqlite3 "file:$SEQ?mode=ro&immutable=1" ".schema record" 2>&1 || echo "(still blocked)"
+          echo "== recent records (hex) =="
+          sqlite3 "file:$SEQ?mode=ro&immutable=1" "select hex(data) from record order by rowid desc limit 5;" 2>&1 | tee /tmp/spike-records.txt || true
+
+      - name: Q3 — Seed authorization + fire our REAL backend, then verify
+        env:
+          AAN_TOAST_LIVE: '1'
+        run: |
+          MARKER="spike-real-$GITHUB_RUN_ID"
+          # Fire through the actual production backend (not terminal-notifier).
+          node -e "import('./src/platforms/macos.mjs').then(m=>m.sendToast({title:'AAN-SPIKE',message:process.env.M})).then(r=>console.log('sendToast:',r))" M="$MARKER" || true
+          sleep 3
+          SEQ="$HOME/Library/Group Containers/group.com.apple.usernoted/db2/db"
+          echo "== decode recent records =="
+          sqlite3 "file:$SEQ?mode=ro&immutable=1" "select hex(data) from record order by rowid desc limit 8;" 2>&1 \
+            | while read h; do echo "$h" | xxd -r -p | plutil -convert json -o - - 2>/dev/null | tee -a /tmp/spike-decoded.json; echo; done || true
+          echo "== ncprefs dump =="
+          plutil -convert json -o /tmp/spike-ncprefs.json "$HOME/Library/Preferences/com.apple.ncprefs.plist" 2>&1 || echo "(unreadable)"
+          head -c 4000 /tmp/spike-ncprefs.json 2>/dev/null || true
+
+      - name: Upload spike artifacts (fixtures + findings)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: spike-mac-delivery
+          path: |
+            /tmp/spike-records.txt
+            /tmp/spike-decoded.json
+            /tmp/spike-ncprefs.json
