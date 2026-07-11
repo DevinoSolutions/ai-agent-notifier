@@ -9,7 +9,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { patchGemini } from '../setup/patch-config.mjs';
-import { requireEnvKey, setupIsolatedHomeWithToast, pollForPush, randomTopic, nonceMarker } from './lib/live-driver.mjs';
+import { requireEnvKey, setupIsolatedHomeWithToast, pollForPush, randomTopic } from './lib/live-driver.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const NOTIFY = path.resolve(__dirname, '..', 'src', 'notify.mjs');
