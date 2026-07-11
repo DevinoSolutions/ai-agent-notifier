@@ -151,3 +151,25 @@ export function assertHooksJsonPatched(hooksPath, { event = 'Stop' } = {}) {
   }
   return hooks;
 }
+
+// A short unique marker safe to embed in an agent prompt and match later in a
+// notification title/body. Distinct from randomTopic (which is an ntfy topic).
+export function nonceMarker(prefix = 'aan') {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let s = '';
+  for (let i = 0; i < 10; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return `${prefix}-${s}`;
+}
+
+// Like setupIsolatedHome but leaves toast ENABLED (macOS delivery lanes need the
+// real toast to fire so it records in Notification Center). ntfy still on for the
+// push assertion. Everything else identical.
+export function setupIsolatedHomeWithToast(opts) {
+  const home = setupIsolatedHome(opts);
+  // Re-write user config with toast enabled (setupIsolatedHome disables it).
+  writeUserConfig(home, {
+    toast: { enabled: true },
+    ntfy: { enabled: true, server: opts.ntfyServer || 'https://ntfy.sh', topic: opts.topic },
+  });
+  return home;
+}
