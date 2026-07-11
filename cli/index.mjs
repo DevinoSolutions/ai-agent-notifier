@@ -14,6 +14,7 @@ const COMMANDS = {
   status: () => import('./status.mjs'),
   test: () => import('./test.mjs'),
   config: () => import('./config.mjs'),
+  doctor: () => import('./doctor.mjs'),
   uninstall: () => import('./uninstall.mjs'),
 };
 
@@ -51,10 +52,13 @@ async function main() {
   }
 
   const mod = await loader();
-  await mod.run(subcommand);
+  await mod.run(...process.argv.slice(3));
 
-  // Show update banner after command output (status handles its own)
-  if (command !== 'status') {
+  // Show update banner after command output. status prints its own; doctor
+  // --json must stay machine-parseable (valid JSON only), so suppress it there.
+  const suppressBanner = command === 'status'
+    || (command === 'doctor' && process.argv.slice(3).includes('--json'));
+  if (!suppressBanner) {
     await printUpdateBanner(c, updatePromise);
   }
 }
@@ -71,6 +75,7 @@ function printHelp(c, banner) {
   console.log(`    ${c.accent('status')}            ${c.white('Show wired tools, ntfy topic, toast backend')}`);
   console.log(`    ${c.accent('test')} ${c.muted('[channel]')}    ${c.white('Fire test notification')} ${c.muted('(toast | ntfy | webhook | bell | both)')}`);
   console.log(`    ${c.accent('config')} ${c.muted('[section]')}  ${c.white('Interactive settings')} ${c.muted('(ntfy | webhook | sounds | events | sentry)')}`);
+  console.log(`    ${c.accent('doctor')} ${c.muted('[--deep]')}   ${c.white('Diagnose delivery per channel')} ${c.muted('(--deep verifies real delivery)')}`);
   console.log(`    ${c.accent('uninstall')}         ${c.white('Remove hooks from all tools')}`);
   console.log(`    ${c.muted('--version, -v')}     ${c.white('Show version and check for updates')}`);
   console.log();
