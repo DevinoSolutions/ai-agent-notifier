@@ -9,7 +9,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { patchGemini } from '../setup/patch-config.mjs';
-import { requireEnvKey, setupIsolatedHome, pollForPush, randomTopic } from './lib/live-driver.mjs';
+import { requireEnvKey, setupIsolatedHomeWithToast, pollForPush, randomTopic, nonceMarker } from './lib/live-driver.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const NOTIFY = path.resolve(__dirname, '..', 'src', 'notify.mjs');
@@ -22,7 +22,7 @@ async function main() {
   });
 
   const topic = randomTopic('live-gemini');
-  const home = setupIsolatedHome({ prefix: 'aan-live-gemini-', dir: '.gemini', topic, seedSettingsFile: 'settings.json' });
+  const home = setupIsolatedHomeWithToast({ prefix: 'aan-live-gemini-', dir: '.gemini', topic, seedSettingsFile: 'settings.json' });
   patchGemini(path.join(home, '.gemini'), NOTIFY);
 
   // GEMINI_CLI_TRUST_WORKSPACE=true is required for headless/CI runs;
@@ -52,6 +52,18 @@ async function main() {
     failMessage: 'FAIL: AfterAgent hook did not deliver an ntfy push within the poll window',
     passMessage: 'PASS (hard): AfterAgent hook delivered an ntfy push',
   });
+
+  if (process.platform === 'darwin') {
+    const { verifyDelivery } = await import('../src/platforms/macos-delivery.mjs');
+    // Gemini's toast is generic ("<project>: Needs your input" / title "Gemini").
+    // Fresh runner ⇒ the only "Gemini"-titled record in the window is ours.
+    const del = await verifyDelivery('Gemini', { timeoutMs: 20000, pollMs: 1000 });
+    if (!del.delivered) {
+      console.error(`FAIL [PRODUCT]: no Notification Center delivery record titled "Gemini" (${del.reason})`);
+      process.exit(1);
+    }
+    console.log(`PASS (hard): NC delivery record present — title="${del.record.title}" body="${del.record.body}"`);
+  }
 
   fs.rmSync(home, { recursive: true, force: true });
   process.exit(0);

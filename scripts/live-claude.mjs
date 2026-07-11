@@ -9,7 +9,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { patchClaude } from '../setup/patch-config.mjs';
-import { requireEnvKey, setupIsolatedHome, pollForPush, randomTopic } from './lib/live-driver.mjs';
+import { requireEnvKey, setupIsolatedHomeWithToast, pollForPush, randomTopic, nonceMarker } from './lib/live-driver.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const NOTIFY = path.resolve(__dirname, '..', 'src', 'notify.mjs');
@@ -22,11 +22,12 @@ async function main() {
   });
 
   const topic = randomTopic('live-claude');
-  const home = setupIsolatedHome({ prefix: 'aan-live-claude-', dir: '.claude', topic, seedSettingsFile: 'settings.json' });
+  const marker = nonceMarker('claude');
+  const home = setupIsolatedHomeWithToast({ prefix: 'aan-live-claude-', dir: '.claude', topic, seedSettingsFile: 'settings.json' });
   patchClaude(path.join(home, '.claude'), NOTIFY);
 
   const env = { ...process.env, HOME: home, USERPROFILE: home };
-  const res = spawnSync('claude', ['-p', 'Reply with the single word OK.'], {
+  const res = spawnSync('claude', ['-p', `Reply with exactly this token and nothing else: ${marker}`], {
     encoding: 'utf8', env, timeout: 120000,
   });
   console.log('claude exit:', res.status);
@@ -48,6 +49,19 @@ async function main() {
     failMessage: 'FAIL: Stop hook did not deliver an ntfy push within the poll window',
     passMessage: 'PASS (hard): Stop hook delivered an ntfy push',
   });
+
+  // macOS only: prove the toast was actually DELIVERED (not just exit 0). The
+  // claude toast body is rich content — the assistant's words — so it carries
+  // our marker. Requires the runner's FDA grant (the workflow runs preflight).
+  if (process.platform === 'darwin') {
+    const { verifyDelivery } = await import('../src/platforms/macos-delivery.mjs');
+    const del = await verifyDelivery(marker, { timeoutMs: 20000, pollMs: 1000 });
+    if (!del.delivered) {
+      console.error(`FAIL [PRODUCT]: no Notification Center delivery record for "${marker}" (${del.reason})`);
+      process.exit(1);
+    }
+    console.log(`PASS (hard): NC delivery record present — title="${del.record.title}"`);
+  }
 
   fs.rmSync(home, { recursive: true, force: true });
   process.exit(0);
