@@ -1,0 +1,41 @@
+name: TUI Proofs
+
+# Drives the REAL agent TUIs in tmux on macOS and asserts user-perceptible
+# outcomes: F1 the claude terminal bell sets window_bell_flag; F2 a codex
+# approval modal is answered and the guarded command runs.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+  pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  tui-proofs:
+    name: TUI Proofs (macos-15)
+    runs-on: macos-15
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      LANG: en_US.UTF-8
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Install tmux + agent CLIs
+        run: |
+          brew install tmux
+          npm install -g @anthropic-ai/claude-code@2.1.205 @openai/codex@0.144.0
+      - name: F1 — claude terminal bell (window_bell_flag)
+        run: node scripts/tui/proof-bell.mjs
+      - name: F2 — codex approval TUI loop
+        run: node scripts/tui/proof-codex-approval.mjs
+      - name: Diagnostics (always)
+        if: always()
+        run: tmux ls || true
