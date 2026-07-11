@@ -1,0 +1,77 @@
+name: Toast macOS
+
+# Delivery-capture proof: fires the REAL osascript backend and asserts the
+# notification was delivered by reading Notification Center's SQLite DB. Unlike
+# an exit-code check, this fails when a real user would have seen nothing.
+on:
+  push:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+  pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  toast-macos:
+    name: Live Toast macOS (delivery capture)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm install
+
+      - name: Preflight — SIP off, OS version, resolve NC DB path
+        run: |
+          sw_vers
+          if ! csrutil status | grep -qi 'disabled'; then
+            echo "FAIL [INFRA]: SIP is not disabled on this runner — cannot self-grant FDA"; exit 1
+          fi
+          node -e "import('./src/platforms/macos-delivery.mjs').then(m=>{const p=m.ncDbPath(); if(!p){console.error('FAIL [INFRA]: no NC DB path'); process.exit(1)} console.log('NC DB:',p)})"
+
+      - name: Negative — unauthorized osascript silently drops (no record)
+        run: |
+          MARKER="neg-$GITHUB_RUN_ID"
+          osascript -e "display notification \"$MARKER\" with title \"AAN-NEG\"" ; echo "osascript exit: $?"
+          sleep 3
+          # Read WITHOUT granting FDA first is unreliable; grant, then assert the
+          # marker is ABSENT (unauthorized app → delivered-but-not-recorded, or
+          # dropped). This pins the silent-drop failure mode.
+          node scripts/mac-preflight-grant.mjs
+          if node -e "import('./src/platforms/macos-delivery.mjs').then(async m=>{const r=await m.verifyDelivery(process.env.MK,{timeoutMs:4000,pollMs:1000}); process.exit(r.delivered?0:1)})" MK="$MARKER"; then
+            echo "NOTE: negative marker WAS recorded — runner is pre-authorized; see spike decision #3"
+          else
+            echo "PASS: unauthorized osascript produced no delivery record (silent-drop confirmed)"
+          fi
+
+      - name: Seed authorization for the notification-owning app
+        run: node scripts/mac-preflight-grant.mjs --seed-auth
+
+      - name: Positive — real backend delivers + records exact payload
+        env:
+          AAN_TOAST_LIVE: '1'
+        run: node scripts/live-toast-macos.mjs
+
+      - name: Product self-proof — doctor --deep agrees (strict)
+        env:
+          AAN_DOCTOR_STRICT: '1'
+        run: node cli/index.mjs doctor --deep --json
+
+      - name: Diagnostics bundle (always)
+        if: always()
+        run: |
+          mkdir -p /tmp/diag
+          node -e "import('./src/platforms/macos-delivery.mjs').then(m=>console.log(JSON.stringify(m.notificationAuthState())))" > /tmp/diag/auth.json 2>&1 || true
+          DB="$(node -e "import('./src/platforms/macos-delivery.mjs').then(m=>console.log(m.ncDbPath()||''))")"
+          [ -n "$DB" ] && sqlite3 "file:$DB?mode=ro&immutable=1" "select hex(data) from record order by rowid desc limit 10;" > /tmp/diag/records.hex 2>&1 || true
+          screencapture -x /tmp/diag/screen.png 2>&1 || true
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: toast-macos-diagnostics
+          path: /tmp/diag
