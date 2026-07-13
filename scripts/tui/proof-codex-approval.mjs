@@ -10,6 +10,7 @@
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import {
   newDetachedWindow, capturePane, sendKeys, resolveBin, killSession, dumpSession, sleep,
 } from './lib.mjs';
@@ -43,6 +44,25 @@ async function main() {
   const workDir = fs.mkdtempSync(path.join(codexHome, 'work-'));
   const sentinel = path.join(workDir, 'approved.txt').replace(/\\/g, '/');
   const codexBin = resolveBin('codex');
+
+  // Authenticate the interactive TUI with the API key. `codex exec` auto-uses the
+  // OPENAI_API_KEY env var, but the interactive TUI defaults to the OAuth *browser*
+  // sign-in flow and parks on auth.openai.com — it never reaches the approval modal
+  // (proven by PR #6 F2 diagnostics). `codex login --api-key` writes CODEX_HOME/
+  // auth.json so the TUI uses the key and skips OAuth. Direct-write fallback in case
+  // the flag differs on this codex version.
+  const key = process.env.OPENAI_API_KEY;
+  const login = spawnSync(codexBin, ['login', '--api-key', key], {
+    env: { ...process.env, CODEX_HOME: codexHome }, encoding: 'utf8', timeout: 30000,
+  });
+  console.log(`F2: codex login --api-key exit=${login.status ?? login.error?.code ?? '?'} ${(login.stderr || login.stdout || '').slice(0, 160).replace(/\s+/g, ' ')}`);
+  const authFile = path.join(codexHome, 'auth.json');
+  if (!fs.existsSync(authFile)) {
+    fs.writeFileSync(authFile, JSON.stringify({ OPENAI_API_KEY: key }));
+    console.log('F2: login did not write auth.json — wrote fallback {OPENAI_API_KEY}.');
+  } else {
+    console.log('F2: auth.json present after login.');
+  }
 
   // Launch the REAL interactive codex TUI in a NON-active window. `bash -c` (not
   // -lc) keeps the inherited PATH; we pass codex's absolute path for good measure.
