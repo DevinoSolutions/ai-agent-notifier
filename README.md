@@ -337,7 +337,7 @@ Removes all managed hooks from every tool's config. Original configs are backed 
 
 ## Testing
 
-Everything below is verified against the **real thing** — no mocks, no stubs, no fakes. Real ntfy.sh push delivery, a real Linux notification daemon receiving the exact payload, the real agent CLIs installed from npm and driven end to end, and the real native OS toast backends actually firing. Every job is **required** and **hard-fails**: a broken key, a renamed secret, or a hook that doesn't deliver turns CI red instead of skipping silently.
+Everything below is verified against the **real thing** — no mocks, no stubs, no fakes. Real ntfy.sh push delivery, a real Linux notification daemon receiving the exact payload, the real agent CLIs installed from npm and driven end to end, and the real native OS toast backends firing — then **read back out of the OS's own notification store** (`dunst` on Linux, Notification Center's database on macOS) to prove the payload actually landed, not just that the call returned 0. Every job is **required** and **hard-fails**: a broken key, a renamed secret, or a hook that doesn't deliver turns CI red instead of skipping silently.
 
 ### What CI verifies on every run — all real, all platforms
 
@@ -374,14 +374,14 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
     <tr>
       <td><strong>Live Claude</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-claude.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-claude.yml/badge.svg?branch=main" alt="Live Claude" /></a></td>
-      <td>Linux</td>
-      <td>Drives the <strong>real</strong> Claude CLI end to end (paid); hard-fails if the hook doesn't deliver a notification</td>
+      <td>Linux · macOS</td>
+      <td>Drives the <strong>real</strong> Claude CLI end to end (paid); hard-fails if the hook doesn't deliver a real ntfy push · on macOS <strong>also reads the delivery back from Notification Center's DB</strong></td>
     </tr>
     <tr>
       <td><strong>Live Gemini</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-gemini.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-gemini.yml/badge.svg?branch=main" alt="Live Gemini" /></a></td>
-      <td>Linux</td>
-      <td>Drives the <strong>real</strong> Gemini CLI end to end; hard-fails if the hook doesn't deliver a notification</td>
+      <td>Linux · macOS</td>
+      <td>Drives the <strong>real</strong> Gemini CLI end to end; hard-fails if the hook doesn't deliver a real ntfy push · on macOS <strong>also reads the delivery back from Notification Center's DB</strong></td>
     </tr>
     <tr>
       <td><strong>Live Codex</strong></td>
@@ -402,10 +402,16 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
       <td>Fires through the real <code>notify-send</code> backend into a <strong>real <code>dunst</code> daemon</strong>, then reads its history and asserts it captured the exact title + body</td>
     </tr>
     <tr>
+      <td><strong>Live Toast macOS</strong><br/>(delivery capture)</td>
+      <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-macos.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-macos.yml/badge.svg?branch=main" alt="Toast macOS" /></a></td>
+      <td>macOS</td>
+      <td>Fires the <strong>real</strong> <code>osascript</code> backend, then <strong>reads the delivery back out of Notification Center's own SQLite DB</strong> and asserts the exact payload was recorded — so it fails when a real user would have seen nothing (the silent-drop an exit-code check misses). Also runs <code>aan doctor --deep</code> as an independent second check</td>
+    </tr>
+    <tr>
       <td><strong>Live Toast Native</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-native.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-native.yml/badge.svg?branch=main" alt="Toast Native" /></a></td>
-      <td>macOS · Windows</td>
-      <td>Fires the <strong>real</strong> <code>osascript</code> / BurntToast backend and asserts the OS accepted the toast</td>
+      <td>Windows</td>
+      <td>Fires the <strong>real</strong> BurntToast backend and asserts Windows accepted the toast</td>
     </tr>
   </tbody>
 </table>
@@ -422,7 +428,7 @@ npm run toast:demo  # fire real desktop toasts, every event
 
 ### The one thing CI can't prove
 
-Headless CI has no display or login session, so it verifies **delivery** (a real daemon received the payload) and **backend success** (the OS accepted the call) — but it cannot prove a human visually *sees* a banner appear. macOS and Windows also silently suppress toasts under Do Not Disturb / Focus or denied notification permission, returning success either way. To confirm with your own eyes on your own machine, run `npm run toast:demo` and watch them pop.
+CI goes further than "the call returned 0." On **Linux** it reads the payload back out of a real `dunst` daemon; on **macOS** it reads the delivery back out of Notification Center's own database — so a notification that was silently dropped for lack of permission records nothing and turns CI **red** instead of green. What no headless runner can prove is the last millimetre: a human's eyes actually seeing the banner render. Do Not Disturb / Focus still suppress the on-screen banner while the notification is recorded as delivered, so "reached Notification Center" is not the same as "a person saw it." To confirm with your own eyes — and to check your own machine's notification permission — run `npm run toast:demo` and `aan doctor --deep`.
 
 ## Contributing
 
