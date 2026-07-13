@@ -375,13 +375,13 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
       <td><strong>Live Claude</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-claude.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-claude.yml/badge.svg?branch=main" alt="Live Claude" /></a></td>
       <td>Linux · macOS</td>
-      <td>Drives the <strong>real</strong> Claude CLI end to end (paid); hard-fails if the hook doesn't deliver a real ntfy push · on macOS <strong>also reads the delivery back from Notification Center's DB</strong></td>
+      <td>Drives the <strong>real</strong> Claude CLI end to end (paid); <strong>hard-fails</strong> if the Stop hook doesn't deliver a real ntfy push · on macOS it also does a <strong>best-effort</strong> Notification Center read-back (logged, non-blocking — the hard osascript→NC delivery proof is the dedicated Toast macOS lane)</td>
     </tr>
     <tr>
       <td><strong>Live Gemini</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-gemini.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-gemini.yml/badge.svg?branch=main" alt="Live Gemini" /></a></td>
       <td>Linux · macOS</td>
-      <td>Drives the <strong>real</strong> Gemini CLI end to end; hard-fails if the hook doesn't deliver a real ntfy push · on macOS <strong>also reads the delivery back from Notification Center's DB</strong></td>
+      <td>Drives the <strong>real</strong> Gemini CLI end to end; <strong>hard-fails</strong> if the hook doesn't deliver a real ntfy push · on macOS it also does a <strong>best-effort</strong> Notification Center read-back (logged, non-blocking — the hard NC delivery proof is the dedicated Toast macOS lane)</td>
     </tr>
     <tr>
       <td><strong>Live Codex</strong></td>
