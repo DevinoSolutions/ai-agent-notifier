@@ -55,7 +55,12 @@ decision-returning hook is CI harness only.
 
 ---
 
-## 4. SPIKE FINDINGS (the decisive, surprising part)
+## 4. SPIKE FINDINGS (v1/v2 — **conclusion OVERTURNED by §6**)
+
+> **2026-07-13 correction:** §4's headline conclusion ("no live usernoted → nothing
+> ever recorded") was wrong. The runner session was live all along; the miss was
+> our read side (`immutable=1` skips the WAL). See §6 before acting on anything
+> in this section.
 
 Two spikes ran on macos-15 (macOS 15.7.7). Raw logs are in the run artifacts
 (`29163082947`, `29163259193`).
@@ -115,3 +120,56 @@ required check OR a faked green — both violate this pass's honesty principle.
 Banner-pixel/screenshot gating (overlays don't composite in `screencapture`),
 sound acoustics (no audio device), notification click/UI-scripting. Captured as
 artifacts only, never gated.
+
+## 6. v3/v4 SPIKE CORRECTION (2026-07-13) — positive capture WORKS headlessly
+
+Two follow-up spikes (v3 run `29218697592`, v4 run `29218925398`, both macos-15)
+inverted §4's conclusion. The prime directive ("exhaust every avenue before
+rescoping") paid off — option B is real, and no session forcing is needed.
+
+### v3 (session-bootstrap attempts + forensics): the session was live all along
+- `launchctl managername` = **Aqua**; console owner = `runner` (uid 501);
+  **WindowServer, loginwindow, and `/usr/sbin/usernoted` (pid 410) running from
+  boot**. All `launchctl bootstrap` attempts returned `Bootstrap failed: 5` —
+  because the services were *already bootstrapped*.
+- Unified log showed our osascript notifications being processed live:
+  `<NotificationRecord app:"com.apple.ScriptEditor2" …> successfully processed
+  by pipeline, scheduled for delivery` → `Delivering … to [ .alert .lockScreen
+  .notificationCenter ]: shouldDeliver: true` — **without any ncprefs seeding**
+  (the runner image evidently ships ScriptEditor2 alert-authorized).
+- `record` counts grew 1→4→7 across the job while every `immutable=1` marker
+  poll still said NOTFOUND.
+
+### The real bug: `immutable=1` skips the WAL
+The NC db is `journal_mode=wal`, written live by `usernoted`. `immutable=1`
+promises SQLite the file cannot change, so reads ignore `db-wal` — fresh
+deliveries are invisible until an arbitrary checkpoint. v1/v2's "nothing is
+ever recorded, by any sender" (and `.dump` grep = 0) was purely this read
+artifact.
+
+### v4 (zero session tricks, WAL-aware reads): positive proof confirmed
+- Bare `osascript display notification` marker: **FOUND after 8 s** via plain
+  `file:…?mode=ro`; the `immutable=1` read at the same instant: **0 hits**.
+- Copy-fallback (`cp db db-wal db-shm` → query the copy): **1 hit** — valid
+  resilience path if plain-ro ever hits lock contention.
+- The positive record decodes (xml1) to exactly our payload: `app =
+  com.apple.ScriptEditor2`, `req.titl = "AAN-SPIKE"`, `req.body = "<marker>"`
+  (titl/body live under the `req` sub-dict). `delivered`/`displayed` grew in
+  lockstep (positive `rec_id=3`, `delivered rows: 3`).
+- `terminal-notifier` marker: NOT recorded within 16 s (sender-specific; not
+  needed — the product path is osascript).
+- Delivery latency on the runner ≈ 6–8 s → keep `verifyDelivery` defaults
+  (30 s timeout / 1 s poll).
+
+### Consequences (supersede §4's "Implication")
+- **The design's central macOS assertion is gateable on hosted runners**: fire
+  real `sendToast()` → match exact payload in the NC DB. Claude/Gemini/Codex
+  macOS legs can keep (or gain) the NC-record assert.
+- Keystone must read WAL-aware (`mode=ro`, no `immutable`), with the copy
+  fallback; decode via xml1/raw-buffer scan (the §4 plutil-json finding stands).
+- The toast-macos "negative" step's premise ("unauthorized sender → no record")
+  is FALSE on the runner (ScriptEditor2 is authorized there). Honest negative
+  control = a never-fired marker must NOT be found (no-false-positives guard).
+- On real user Macs the silent-drop failure mode from §1 still exists — that is
+  what `aan doctor --deep` detects for users; CI now proves the detector itself
+  against live deliveries.
