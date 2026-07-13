@@ -33,9 +33,6 @@ jobs:
       - name: Install Claude Code CLI
         # pinned — bump deliberately; drift canary tracks @latest
         run: npm install -g @anthropic-ai/claude-code@2.1.205
-      - name: macOS preflight (FDA grant + auth seed)
-        if: runner.os == 'macOS'
-        run: node scripts/mac-preflight-grant.mjs --seed-auth
       - name: Drive Claude end-to-end (hard-fails if key missing or hook silent)
         run: node scripts/live-claude.mjs
       - name: Diagnostics (always, macOS)

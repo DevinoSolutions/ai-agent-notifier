@@ -1,7 +1,14 @@
 // scripts/live-codex.mjs — Tier 2 live E2E for Codex CLI: the REAL approval loop.
 // Proves: codex reaches an approval point → our PermissionRequest hook fires the
 // product notification AND returns a decision → codex obeys (sentinel appears on
-// allow, is absent on deny). On macOS additionally asserts the NC delivery record.
+// allow, is absent on deny).
+//
+// macOS NC-delivery coverage for codex is DEFERRED: this lane does not set up a
+// toast-enabled notifier home, and whether `codex exec` even fires the
+// PermissionRequest hook on the runner is still unverified (see EMPIRICAL BRANCH
+// below) — deferred pending the first PR CI result. The osascript → Notification
+// Center delivery path is already proven by the live-claude, live-gemini, and
+// toast-macos lanes.
 //
 // EMPIRICAL BRANCH — `codex exec` vs. `codex proto`:
 // The exact `codex exec` approval-forcing invocation may need adjustment to the

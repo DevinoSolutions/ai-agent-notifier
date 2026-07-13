@@ -24,31 +24,24 @@ jobs:
           node-version: 22
       - run: npm install
 
-      - name: Preflight — SIP off, OS version, resolve NC DB path
+      - name: Preflight — OS/SIP status (info) + resolve & assert NC DB is readable
         run: |
           sw_vers
-          if ! csrutil status | grep -qi 'disabled'; then
-            echo "FAIL [INFRA]: SIP is not disabled on this runner — cannot self-grant FDA"; exit 1
-          fi
-          node -e "import('./src/platforms/macos-delivery.mjs').then(m=>{const p=m.ncDbPath(); if(!p){console.error('FAIL [INFRA]: no NC DB path'); process.exit(1)} console.log('NC DB:',p)})"
+          csrutil status || true   # informational only — FDA is unnecessary; the NC DB is world-readable
+          DB="$(node -e "import('./src/platforms/macos-delivery.mjs').then(m=>console.log(m.ncDbPath()||''))")"
+          if [ -z "$DB" ]; then echo "FAIL [INFRA]: no NC DB path resolved"; exit 1; fi
+          echo "NC DB: $DB"
+          if [ ! -r "$DB" ]; then echo "FAIL [INFRA]: NC DB is not readable: $DB"; exit 1; fi
+          echo "PASS: NC DB resolved and readable (no FDA grant needed)"
 
-      - name: Negative — unauthorized osascript silently drops (no record)
+      - name: No-false-positive guard — matcher must not hallucinate a never-fired marker
         run: |
-          MARKER="neg-$GITHUB_RUN_ID"
-          osascript -e "display notification \"$MARKER\" with title \"AAN-NEG\"" ; echo "osascript exit: $?"
-          sleep 3
-          # Read WITHOUT granting FDA first is unreliable; grant, then assert the
-          # marker is ABSENT (unauthorized app → delivered-but-not-recorded, or
-          # dropped). This pins the silent-drop failure mode.
-          node scripts/mac-preflight-grant.mjs
-          if node -e "import('./src/platforms/macos-delivery.mjs').then(async m=>{const r=await m.verifyDelivery(process.env.MK,{timeoutMs:4000,pollMs:1000}); process.exit(r.delivered?0:1)})" MK="$MARKER"; then
-            echo "NOTE: negative marker WAS recorded — runner is pre-authorized; see spike decision #3"
-          else
-            echo "PASS: unauthorized osascript produced no delivery record (silent-drop confirmed)"
-          fi
-
-      - name: Seed authorization for the notification-owning app
-        run: node scripts/mac-preflight-grant.mjs --seed-auth
+          # Probe a marker that is NEVER fired: verifyDelivery must return
+          # delivered:false. Proves the raw-buffer matcher does not hallucinate hits,
+          # so a PASS in the positive step below is meaningful and not a fluke.
+          MARKER="never-fired-$GITHUB_RUN_ID-$RANDOM"
+          echo "Probing never-fired marker: $MARKER"
+          MK="$MARKER" node -e "import('./src/platforms/macos-delivery.mjs').then(async m=>{const r=await m.verifyDelivery(process.env.MK,{timeoutMs:4000,pollMs:1000}); if(r.delivered){console.error('FAIL: matcher reported a never-fired marker as delivered — false positive'); process.exit(1)} console.log('PASS: never-fired marker absent (delivered:false, reason='+r.reason+')')})"
 
       - name: Positive — real backend delivers + records exact payload
         env:
@@ -66,7 +59,7 @@ jobs:
           mkdir -p /tmp/diag
           node -e "import('./src/platforms/macos-delivery.mjs').then(m=>console.log(JSON.stringify(m.notificationAuthState())))" > /tmp/diag/auth.json 2>&1 || true
           DB="$(node -e "import('./src/platforms/macos-delivery.mjs').then(m=>console.log(m.ncDbPath()||''))")"
-          [ -n "$DB" ] && sqlite3 "file:$DB?mode=ro&immutable=1" "select hex(data) from record order by rowid desc limit 10;" > /tmp/diag/records.hex 2>&1 || true
+          [ -n "$DB" ] && sqlite3 "file:$DB?mode=ro" "select hex(data) from record order by rowid desc limit 10;" > /tmp/diag/records.hex 2>&1 || true
           screencapture -x /tmp/diag/screen.png 2>&1 || true
 
       - name: Upload diagnostics

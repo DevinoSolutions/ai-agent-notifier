@@ -5,8 +5,9 @@
 // DELIVERED by reading Notification Center's SQLite DB — not by trusting the
 // osascript exit code (which is 0 even when the banner is silently dropped).
 //
-// Requires (CI provides): macos-15, SIP disabled, an FDA self-grant so the DB is
-// readable, and authorization seeded so the notification actually records.
+// Requires (CI provides): macos-15. No FDA self-grant or auth seeding is needed —
+// the NC DB is world-readable and the runner's osascript-owning app (ScriptEditor2)
+// is already notification-authorized, so a bare osascript notification records live.
 import os from 'node:os';
 import { route } from '../src/router.mjs';
 import { loadConfig } from '../src/config-loader.mjs';
@@ -40,7 +41,7 @@ async function main() {
 
   const res = await verifyDelivery(marker, { timeoutMs: 30000, pollMs: 1000 });
   if (!res.delivered) {
-    if (res.reason === 'tcc-blocked') infra('NC DB unreadable (TCC) — FDA grant did not take.');
+    if (res.reason === 'tcc-blocked') infra('NC DB unreadable (TCC) — expected world-readable on this runner.');
     fail(`no Notification Center delivery record for marker "${marker}" (${res.reason}). osascript exited but nothing was delivered.`);
   }
 
