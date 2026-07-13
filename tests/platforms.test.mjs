@@ -68,19 +68,16 @@ describe('toast backends fail gracefully (return false, never throw)', () => {
 // Native success path: actually FIRE a notification on the host OS and assert
 // the backend reports success. Gated behind AAN_TOAST_LIVE=1 so a normal local
 // `npm test` never pops a toast in the developer's face; CI's toast-native job
-// sets the flag on macOS + Windows runners. Linux's notify-send needs a running
-// daemon (none on a bare runner), so its real-delivery proof lives in the
-// separate scripts/live-toast-linux.mjs job which spins up dunst.
+// sets the flag on Windows runners. Linux's notify-send needs a running daemon
+// (none on a bare runner), so its real-delivery proof lives in the separate
+// scripts/live-toast-linux.mjs job which spins up dunst.
+//
+// macOS is deliberately NOT proven here: an osascript exit-0 check is the exact
+// false-confidence trap this pass replaced (exit 0 ≠ delivered). The real macOS
+// proof reads the delivery back from Notification Center's DB in the dedicated
+// toast-macos.yml lane (scripts/live-toast-macos.mjs).
 describe('native toast fires on its own OS (live — set AAN_TOAST_LIVE=1)', () => {
   const LIVE = process.env.AAN_TOAST_LIVE === '1';
-
-  it('macOS osascript notification resolves true', async (t) => {
-    if (!LIVE) return t.skip('set AAN_TOAST_LIVE=1 to fire a real notification');
-    if (platform !== 'darwin') return t.skip('not macOS');
-    const { sendToast } = await import('../src/platforms/macos.mjs');
-    const r = await sendToast({ title: 'AAN CI', message: 'macOS native toast test', toastSound: 'default' });
-    assert.equal(r, true);
-  });
 
   it('Windows toast.ps1 resolves true', async (t) => {
     if (!LIVE) return t.skip('set AAN_TOAST_LIVE=1 to fire a real notification');
