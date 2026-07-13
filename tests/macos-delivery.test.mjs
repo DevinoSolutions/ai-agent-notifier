@@ -20,13 +20,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isMac = os.platform() === 'darwin';
 const hasPlutil = (() => { try { execFileSync('which', ['plutil']); return true; } catch { return false; } })();
 
-// The plutil-gated tests below also depend on real fixtures captured by the CI
-// spike (tests/fixtures/*). Those fixtures do not exist yet on a fresh checkout
-// (and never on a Windows dev box), so each fixture test skips unless BOTH plutil
-// and its fixture are present.
+// Real fixtures captured from a macos-15 CI runner (tests/fixtures/*) back the
+// tests below. The record fixture is a bplist BLOB (hex) that needs plutil to
+// decode; the ncprefs fixture is already an xml1 conversion, so it parses as text
+// on any platform. Each fixture test skips only if its fixture is absent.
 const recordFixture = path.join(__dirname, 'fixtures', 'nc-record-sample.txt');
 const haveRecordFixture = fs.existsSync(recordFixture);
-const ncprefsFixture = path.join(__dirname, 'fixtures', 'ncprefs-sample.json');
+const ncprefsFixture = path.join(__dirname, 'fixtures', 'ncprefs-sample.xml');
 const haveNcprefsFixture = fs.existsSync(ncprefsFixture);
 
 // The raw-scan primitive verifyDelivery is built on: the record BLOB, hex-decoded,
@@ -63,14 +63,14 @@ test('extractRecordFields parses titl/body/app and unescapes XML entities (synth
 
 // decodeRecordPlist turns a hex bplist BLOB into { title, body, app, date } via
 // `plutil -convert xml1`. The fixture is a REAL record captured from a macos-15
-// runner by the spike. Body is asserted exactly; the title text is pinned by a
-// later CI job, so here we only assert it decodes to a non-empty string.
+// runner by the spike; title/body/app are pinned to the exact decoded values.
+// NOTE: the title carries a curly apostrophe (U+2019) — keep this file UTF-8.
 test('decodeRecordPlist extracts title and body from a real NC record', { skip: (!hasPlutil || !haveRecordFixture) && 'needs plutil + spike fixture' }, () => {
   const hex = fs.readFileSync(recordFixture, 'utf8').trim();
   const rec = decodeRecordPlist(hex);
+  assert.equal(rec.title, 'See what’s new in macOS 15');
   assert.equal(rec.body, 'Take a look at the new features.');
-  assert.ok(typeof rec.title === 'string' && rec.title.length > 0, 'title decodes to a non-empty string');
-  assert.ok(typeof rec.app === 'string');
+  assert.equal(rec.app, 'com.apple.tips');
 });
 
 test('decodeRecordPlist returns null on garbage input (never throws)', () => {
@@ -78,23 +78,27 @@ test('decodeRecordPlist returns null on garbage input (never throws)', () => {
   assert.equal(decodeRecordPlist(''), null);
 });
 
-// decodeAuthFlags interprets one ncprefs "apps" entry. Fixture is real ncprefs JSON.
-test('decodeAuthFlags classifies an app entry from real ncprefs', { skip: (!hasPlutil || !haveNcprefsFixture) && 'needs plutil + spike fixture' }, () => {
-  const json = JSON.parse(fs.readFileSync(ncprefsFixture, 'utf8'));
-  const apps = json.apps || [];
+// Real ncprefs: the xml1 conversion of a macos-15 runner's com.apple.ncprefs.plist
+// (55 apps). Parsed directly as TEXT — no plutil, cross-platform. Proves the parser
+// takes each app's own top-level flags and not a nested `src` dict's flags:
+// FaceTime is app-level 41951246, whereas its nested src flags is 6.
+test('parseNcprefsApps parses real ncprefs xml (app-level flags, not nested)', { skip: !haveNcprefsFixture && 'needs ncprefs xml fixture' }, () => {
+  const xml = fs.readFileSync(ncprefsFixture, 'utf8');
+  const apps = parseNcprefsApps(xml);
+  const faceTime = apps.find((a) => a['bundle-id'] === 'com.apple.FaceTime');
+  assert.ok(faceTime, 'FaceTime entry present in real ncprefs');
+  assert.equal(faceTime.flags, 41951246);
   // Every real entry decodes to one of the three states, never throws.
-  for (const entry of apps) {
-    const state = decodeAuthFlags(entry.flags);
-    assert.ok(['authorized', 'unauthorized', 'unknown'].includes(state));
+  for (const a of apps) {
+    assert.ok(['authorized', 'unauthorized', 'unknown'].includes(decodeAuthFlags(a.flags)));
   }
 });
 
-// parseNcprefsApps is the pure xml1→apps step (no plutil, cross-platform). A real
-// ncprefs fixture can't be captured headlessly, so correctness is proven against
-// SYNTHETIC xml1 that stresses the parser: a <data> path blob between keys, a
-// nested <dict>, reversed key order (flags before bundle-id), and a trailing
-// top-level key after the array — the depth-aware split must still pair each
-// bundle-id with its own flags.
+// The real-ncprefs test above covers production layout; this SYNTHETIC case pins
+// specific robustness the fixture may not exercise: a <data> path blob between
+// keys, a nested <dict>, reversed key order (flags BEFORE bundle-id), and a
+// trailing top-level key after the array — the depth-aware split must still pair
+// each bundle-id with its own flags.
 test('parseNcprefsApps extracts (bundle-id, flags) per app, robust to layout (synthetic)', () => {
   const xml = [
     '<plist version="1.0"><dict>',

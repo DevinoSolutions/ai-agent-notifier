@@ -89,19 +89,37 @@ export function decodeRecordPlist(hex) {
 }
 
 // Query the DB read-only for recent record BLOBs (hex). Returns { rows, error }.
-// `immutable=1` avoids WAL lock contention with a live usernoted. An "unable to
-// open" error is surfaced (callers map it to a TCC-blocked hint).
+// We read WITHOUT immutable=1: the NC db is journal_mode=wal, written live by
+// usernoted, and immutable=1 makes SQLite ignore the -wal sidecar — so freshly
+// delivered rows (which live in the WAL until the next checkpoint) are invisible
+// and verifyDelivery would be permanently blind. A plain mode=ro reader is
+// WAL-aware and does not block the writer. If that read fails (transient
+// lock/permission), we retry ONCE against a private copy of db + db-wal + db-shm.
+// An "unable to open"/authorization error is surfaced (callers → TCC-blocked hint).
 function queryRecordHex(dbPath, limit = 20) {
+  const sql = `select hex(data) from record order by rowid desc limit ${limit};`;
+  const rowsOf = (out) => out.split('\n').map((l) => l.trim()).filter(Boolean);
   try {
-    const out = execFileSync(
-      'sqlite3',
-      [`file:${dbPath}?mode=ro&immutable=1`, `select hex(data) from record order by rowid desc limit ${limit};`],
-      { encoding: 'utf8' },
-    );
-    return { rows: out.split('\n').map((l) => l.trim()).filter(Boolean), error: null };
-  } catch (err) {
-    const msg = String(err.stderr || err.message || '');
-    return { rows: [], error: /unable to open|authorization denied|not authorized/i.test(msg) ? 'tcc-blocked' : 'query-failed' };
+    const out = execFileSync('sqlite3', [`file:${dbPath}?mode=ro`, sql], { encoding: 'utf8' });
+    return { rows: rowsOf(out), error: null };
+  } catch (liveErr) {
+    // Fallback: snapshot the db and its WAL sidecars to a temp dir and read the
+    // copy (still mode=ro so the copied WAL is replayed). Never writes the live db.
+    let dir;
+    try {
+      dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-ncdb-'));
+      const copy = path.join(dir, 'db');
+      for (const suffix of ['', '-wal', '-shm']) {
+        if (fs.existsSync(dbPath + suffix)) fs.copyFileSync(dbPath + suffix, copy + suffix);
+      }
+      const out = execFileSync('sqlite3', [`file:${copy}?mode=ro`, sql], { encoding: 'utf8' });
+      return { rows: rowsOf(out), error: null };
+    } catch (copyErr) {
+      const msg = [liveErr, copyErr].map((e) => String((e && (e.stderr || e.message)) || '')).join(' ');
+      return { rows: [], error: /unable to open|authorization denied|not authorized/i.test(msg) ? 'tcc-blocked' : 'query-failed' };
+    } finally {
+      if (dir) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ } }
+    }
   }
 }
 
