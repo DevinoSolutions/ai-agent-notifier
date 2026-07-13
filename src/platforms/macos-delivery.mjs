@@ -155,17 +155,21 @@ export async function verifyDelivery(marker, { timeoutMs = 30000, pollMs = 1000 
 }
 
 // Interpret an ncprefs "apps[].flags" integer into an authorization state.
-// The ncprefs flags bitmask encodes per-app notification settings. The bit that
-// means "notifications allowed" is DEFAULT_AUTH per the spike's ncprefs dump
-// (decision #5). Unknown/undecodable → 'unknown' (callers treat as warn, not
-// fail). Conservative by design: we only claim 'unauthorized' when we can read
-// the flags and the allow bit is clearly off.
 //
-// Spike-confirmed: set AUTH_BIT to the observed "banners/alerts enabled" bit.
-// The research indicates the low bits govern alert style; bit 0 set with a
-// non-"none" alert style = authorized. If the spike shows a cleaner signal
-// (e.g. a dedicated key), prefer that and document it here.
-const AUTH_BIT = 1 << 0; // placeholder-free default; confirm against fixture in Task 1
+// HONESTY CAVEAT: which bit means "notifications allowed" is NOT verified. It is
+// a community-reverse-engineered guess, never validated against Apple ground
+// truth (no spike ever confirmed it). So decodeAuthFlags' 'authorized' /
+// 'unauthorized' is a LOW-CONFIDENCE diagnostic hint only: it is not consumed by
+// any CI gate or hard `aan doctor` pass/fail. Delivery is proven by the NC record
+// check in verifyDelivery, not by this bit; doctor treats a non-'authorized'
+// state as a soft 'warn' at most.
+//
+// Known limitation: against the real captured fixture
+// (tests/fixtures/ncprefs-sample.xml), AUTH_BIT = 1<<0 classifies FaceTime
+// (flags=41951246, bit 0 = 0) as 'unauthorized', almost certainly wrong for a
+// system app, and a concrete example of why this is a hint and not a source of
+// truth. Do not tighten the bit without an authoritative ncprefs bitfield spec.
+const AUTH_BIT = 1 << 0; // unverified allow-bit guess (see caveat above)
 
 export function decodeAuthFlags(flags) {
   if (typeof flags !== 'number' || Number.isNaN(flags)) return 'unknown';

@@ -61,6 +61,35 @@ test('extractRecordFields parses titl/body/app and unescapes XML entities (synth
   assert.equal(rec.date, '2026-07-11T00:00:00Z');
 });
 
+// Decoy resilience: an NC record can nest an `acts` (action) sub-dict carrying its
+// OWN titl/body. extractRecordFields is first-match, and the real req.titl/body
+// (direct children of `req`) precede any nested action decoy, so the outer/first
+// values win. Pins that behavior cross-platform (otherwise only exercised on the
+// mac plutil path). NOTE: this is first-match coverage only — a decoy placed
+// textually BEFORE the real titl would win; real NC records order req.titl ahead
+// of nested actions.
+test('extractRecordFields returns the outer req titl/body, not a later nested decoy (synthetic)', () => {
+  const xml = [
+    '<plist version="1.0"><dict>',
+    '<key>app</key><string>com.apple.tips</string>',
+    '<key>req</key><dict>',
+    '<key>titl</key><string>Real Title</string>',
+    '<key>body</key><string>Real body</string>',
+    '<key>acts</key><array>',
+    '<dict>',
+    '<key>titl</key><string>DECOY WRONG</string>',
+    '<key>body</key><string>DECOY BODY</string>',
+    '</dict>',
+    '</array>',
+    '</dict>',
+    '</dict></plist>',
+  ].join('');
+  const rec = extractRecordFields(xml);
+  assert.equal(rec.title, 'Real Title');
+  assert.equal(rec.body, 'Real body');
+  assert.equal(rec.app, 'com.apple.tips');
+});
+
 // decodeRecordPlist turns a hex bplist BLOB into { title, body, app, date } via
 // `plutil -convert xml1`. The fixture is a REAL record captured from a macos-15
 // runner by the spike; title/body/app are pinned to the exact decoded values.
