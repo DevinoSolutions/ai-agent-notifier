@@ -1,19 +1,10 @@
 name: Spike Mac Delivery (scratch — delete before merge)
 
-# v4 — WAL THEORY CONFIRMATION (the v3 breakthrough).
-# v3 forensics proved the runner session was live all along: managername=Aqua,
-# WindowServer + loginwindow up, usernoted pre-running (pid 410), unified log
-# shows our ScriptEditor2 notifications "successfully processed by pipeline …
-# Delivering … shouldDeliver: true", and record counts grew 1→4→7. Every
-# "NOTFOUND" came from the READ side: `immutable=1` makes SQLite skip the WAL,
-# so rows written live by usernoted are invisible until checkpoint.
-# v4 asserts, with ZERO session tricks:
-#   1. plain mode=ro (WAL-aware) sees a bare-osascript marker within seconds;
-#   2. the immutable=1 read misses it at the same instant (smoking-gun contrast);
-#   3. the copy-db+wal+shm fallback also sees it;
-#   4. dump + xml1-decode the positive record (future positive fixture);
-#   5. delivered/displayed linkage + terminal-notifier sender variant.
-# Grep logs for 'V4-VERDICT'.
+# v5 — capture a REAL ncprefs fixture (xml1), now that v4 confirmed the live
+# session + WAL-aware positive capture. v1 only tried `plutil -convert json`
+# on ncprefs (fails); xml1 may work → makes the second skipped keystone test
+# (decodeAuthFlags on real ncprefs) real. Also re-verify the positive path
+# once more for stability (2 runs > 1).
 
 on:
   workflow_dispatch:
@@ -22,113 +13,45 @@ on:
     paths: ['.github/workflows/spike-mac-delivery.yml']
 
 jobs:
-  wal:
-    name: v4 — WAL-aware read proves positive delivery capture (macos-15)
+  ncprefs:
+    name: v5 — real ncprefs xml1 capture + positive-path re-check (macos-15)
     runs-on: macos-15
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Helpers
+      - name: ncprefs readability via xml1 + defaults export
         run: |
-          cat > /tmp/nc.sh <<'EOF'
+          set +e
+          P="$HOME/Library/Preferences/com.apple.ncprefs.plist"
+          ls -la "$P"
+          mkdir -p spike-artifacts
+          echo "== plutil -convert xml1 =="
+          plutil -convert xml1 -o spike-artifacts/ncprefs.xml "$P" 2>&1 && echo "V5-VERDICT ncprefs_xml1=OK" || echo "V5-VERDICT ncprefs_xml1=FAIL"
+          head -60 spike-artifacts/ncprefs.xml 2>/dev/null
+          echo "== bundle-ids present =="
+          grep -o '<string>com\.[a-zA-Z0-9.]*</string>' spike-artifacts/ncprefs.xml 2>/dev/null | sort -u | head -20
+          echo "== defaults export variant =="
+          defaults export com.apple.ncprefs - 2>&1 | head -20
+          true
+
+      - name: Positive-path re-check (stability, run 2 of 2)
+        run: |
+          set +e
           DB="$HOME/Library/Group Containers/group.com.apple.usernoted/db2/db"
           WAL="file:$DB?mode=ro"
-          IMM="file:$DB?mode=ro&immutable=1"
-          cnt() { sqlite3 "$1" "select count(*) from record" 2>/dev/null || echo ERR; }
-          mark() { sqlite3 "$1" "select count(*) from record where hex(data) like '%'||hex('$2')||'%'" 2>/dev/null || echo 0; }
-          fire() { osascript -e "display notification \"$1\" with title \"AAN-SPIKE\"" 2>&1; }
-          EOF
-          echo ok
-
-      - name: DB dir + journal mode
-        run: |
-          set +e; source /tmp/nc.sh
-          ls -la "$(dirname "$DB")"
-          echo "journal_mode(plain-ro): $(sqlite3 "$WAL" 'pragma journal_mode;' 2>&1)"
-          echo "wal counts: record=$(cnt "$WAL")  immutable counts: record=$(cnt "$IMM")"
-          echo "== delivered schema =="; sqlite3 "$WAL" '.schema delivered' 2>&1
-          true
-
-      - name: V4 core — bare osascript, WAL-aware poll vs immutable poll
-        run: |
-          set +e; source /tmp/nc.sh
-          M="AAN-V4-$GITHUB_RUN_ID"
-          fire "$M"
-          FOUND=0
+          M="AAN-V5-$GITHUB_RUN_ID"
+          osascript -e "display notification \"$M\" with title \"AAN-SPIKE\""
           for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-            W=$(mark "$WAL" "$M"); I=$(mark "$IMM" "$M")
-            echo "t=$((i*2))s wal_hits=$W imm_hits=$I wal_cnt=$(cnt "$WAL") imm_cnt=$(cnt "$IMM")"
-            if [ "${W:-0}" -gt 0 ] 2>/dev/null; then FOUND=$i; break; fi
+            W=$(sqlite3 "$WAL" "select count(*) from record where hex(data) like '%'||hex('$M')||'%'" 2>/dev/null || echo 0)
+            if [ "${W:-0}" -gt 0 ] 2>/dev/null; then echo "V5-VERDICT positive=FOUND after $((i*2))s"; break; fi
+            [ "$i" = "15" ] && echo "V5-VERDICT positive=NOTFOUND after 30s"
             sleep 2
           done
-          if [ "$FOUND" -gt 0 ]; then
-            echo "V4-VERDICT core=FOUND after $((FOUND*2))s (wal read). immutable at same instant: $(mark "$IMM" "$M") hits"
-          else
-            echo "V4-VERDICT core=NOTFOUND after 30s (wal read)"
-          fi
-          true
-
-      - name: Copy-fallback read (db + wal + shm)
-        run: |
-          set +e; source /tmp/nc.sh
-          M="AAN-V4-$GITHUB_RUN_ID"
-          T=$(mktemp -d)
-          cp "$DB" "$T/db" 2>/dev/null; cp "$DB-wal" "$T/db-wal" 2>/dev/null; cp "$DB-shm" "$T/db-shm" 2>/dev/null
-          ls -la "$T"
-          echo "copy counts: record=$(sqlite3 "file:$T/db?mode=ro" 'select count(*) from record' 2>&1)"
-          echo "V4-VERDICT copy_hits=$(sqlite3 "file:$T/db?mode=ro" "select count(*) from record where hex(data) like '%'||hex('$M')||'%'" 2>&1)"
-          true
-
-      - name: Dump + decode the positive record (future fixture)
-        run: |
-          set +e; source /tmp/nc.sh
-          M="AAN-V4-$GITHUB_RUN_ID"
-          mkdir -p spike-artifacts
-          sqlite3 "$WAL" "select hex(data) from record where hex(data) like '%'||hex('$M')||'%' limit 1" > spike-artifacts/positive-record.hex 2>&1
-          wc -c spike-artifacts/positive-record.hex
-          echo "== xml1 of positive record =="
-          head -1 spike-artifacts/positive-record.hex | xxd -r -p | plutil -convert xml1 -o - - 2>&1 | head -60
-          echo "== plutil -p of positive record =="
-          head -1 spike-artifacts/positive-record.hex | xxd -r -p | plutil -p - 2>&1 | head -40
-          true
-
-      - name: delivered/displayed linkage for the positive record
-        run: |
-          set +e; source /tmp/nc.sh
-          M="AAN-V4-$GITHUB_RUN_ID"
-          RID=$(sqlite3 "$WAL" "select rec_id from record where hex(data) like '%'||hex('$M')||'%' limit 1" 2>/dev/null)
-          echo "positive rec_id=$RID"
-          echo "delivered rows: $(sqlite3 "$WAL" 'select count(*) from delivered' 2>&1)  displayed rows: $(sqlite3 "$WAL" 'select count(*) from displayed' 2>&1)"
-          sqlite3 "$WAL" "select * from delivered limit 10" 2>&1
-          sqlite3 "$WAL" "select * from displayed limit 10" 2>&1
-          true
-
-      - name: terminal-notifier sender variant
-        run: |
-          set +e; source /tmp/nc.sh
-          brew install terminal-notifier 2>&1 | tail -1
-          M="AAN-V4TN-$GITHUB_RUN_ID"
-          terminal-notifier -title "AAN-SPIKE" -message "$M" 2>&1
-          for i in 1 2 3 4 5 6 7 8; do
-            W=$(mark "$WAL" "$M")
-            if [ "${W:-0}" -gt 0 ] 2>/dev/null; then echo "V4-VERDICT tn=FOUND after $((i*2))s"; break; fi
-            [ "$i" = "8" ] && echo "V4-VERDICT tn=NOTFOUND after 16s"
-            sleep 2
-          done
-          true
-
-      - name: Collect artifacts
-        if: always()
-        run: |
-          set +e; source /tmp/nc.sh
-          mkdir -p spike-artifacts
-          echo "final: wal_record=$(cnt "$WAL") imm_record=$(cnt "$IMM")" | tee -a spike-artifacts/final-counts.txt
-          sqlite3 "$WAL" "select hex(data) from record order by rec_id desc limit 5" > spike-artifacts/records-newest.hex 2>&1
           true
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
-          name: spike-v4-wal
+          name: spike-v5-ncprefs
           path: spike-artifacts/
