@@ -1,5 +1,19 @@
 name: Spike Mac Delivery (scratch — delete before merge)
 
+# v3 — OPTION B MAXIMUM-COVERAGE PUSH.
+# v1/v2 proved: DB readable, schema known, xml1 decodes, BUT nothing ever gets
+# recorded (no live usernoted). v3 tries to FORCE a live Notification Center
+# session two ways:
+#   Job A: launchctl bootstrap/kickstart usernoted + notificationcenterui into
+#          gui/user domains; direct /usr/libexec/usernoted exec; ncprefs
+#          auth-seed + daemon restart.
+#   Job B: guidepup/setup-action (purpose-built to give runners a real GUI /
+#          VoiceOver session), then fire + poll; retry kickstart after setup.
+# Every attempt fires a unique marker and polls `record` via pure-SQL hex LIKE.
+# Unified-log forensics tell us WHY (daemon absent vs authorization drop).
+# Also decodes the committed fixture to pin its exact title/body for tests.
+# Grep logs for 'B-VERDICT' lines.
+
 on:
   workflow_dispatch:
   push:
@@ -7,83 +21,219 @@ on:
     paths: ['.github/workflows/spike-mac-delivery.yml']
 
 jobs:
-  spike:
-    name: Spike v2 — where do notifications land + how to decode (macos-15)
+  bootstrap:
+    name: v3A — force live NC session via launchctl/auth-seed (macos-15)
     runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Tables + baseline counts
+      - name: Write shared helpers
         run: |
+          cat > /tmp/nc.sh <<'EOF'
           DB="$HOME/Library/Group Containers/group.com.apple.usernoted/db2/db"
           RO="file:$DB?mode=ro&immutable=1"
-          echo "== tables =="; sqlite3 "$RO" ".tables"
-          echo "== per-table row counts (baseline) =="
-          for t in $(sqlite3 "$RO" ".tables"); do
-            printf "%s = " "$t"; sqlite3 "$RO" "select count(*) from $t;" 2>&1
-          done
+          counts() { for t in record delivered displayed requests; do printf "%s=%s " "$t" "$(sqlite3 "$RO" "select count(*) from $t" 2>/dev/null || echo ERR)"; done; echo; }
+          findmark() { sqlite3 "$RO" "select count(*) from record where hex(data) like '%'||hex('$1')||'%'" 2>/dev/null || echo 0; }
+          fire() { osascript -e "display notification \"$1\" with title \"AAN-SPIKE\"" 2>&1; }
+          poll() { local m="$1" c i; for i in 1 2 3 4 5 6 7 8; do c=$(findmark "$m"); if [ "${c:-0}" -gt 0 ] 2>/dev/null; then echo "B-VERDICT marker=$m FOUND after $((i*2))s (rows=$c)"; return 0; fi; sleep 2; done; echo "B-VERDICT marker=$m NOTFOUND"; return 1; }
+          attempt() { local tag="$1"; echo "--- [$tag] fire + poll ---"; fire "$tag"; poll "$tag" || true; echo "[$tag] counts: $(counts)"; }
+          EOF
+          echo ok
 
-      - name: Fire osascript marker, then locate it across the WHOLE db
+      - name: Session + daemon diagnosis
         run: |
-          DB="$HOME/Library/Group Containers/group.com.apple.usernoted/db2/db"
-          RO="file:$DB?mode=ro&immutable=1"
-          MARK="osa-$GITHUB_RUN_ID"
-          echo "firing osascript marker: $MARK"
-          osascript -e "display notification \"body $MARK\" with title \"AAN $MARK\"" ; echo "exit: $?"
-          sleep 4
-          echo "== record count after =="; sqlite3 "$RO" "select count(*) from record;"
-          echo "== full .dump grep for marker (any table) =="
-          sqlite3 "$RO" ".dump" 2>/dev/null | grep -c "$MARK" || echo "0 textual hits"
-          echo "== search every data BLOB (hex) in record+delivered for marker =="
-          HEXMARK=$(printf '%s' "$MARK" | xxd -p | tr -d '\n')
-          for t in record delivered; do
-            cols=$(sqlite3 "$RO" "PRAGMA table_info($t);" 2>/dev/null | grep -i data | head -1)
-            [ -z "$cols" ] && { echo "$t: no data col"; continue; }
-            hits=$(sqlite3 "$RO" "select count(*) from $t where hex(data) like '%$(echo $HEXMARK | tr a-z A-Z)%';" 2>&1)
-            echo "$t rows whose data BLOB contains marker bytes: $hits"
-          done
+          set +e
+          U=$(id -u)
+          echo "uid=$U user=$(id -un)"
+          echo "managername: $(launchctl managername 2>&1)"
+          echo "console owner: $(stat -f%Su /dev/console 2>&1)"
+          who
+          echo "== relevant processes =="
+          ps ax -o pid,comm | egrep -i 'WindowServer|loginwindow|usernoted|NotificationCenter|distnoted' || echo "(none)"
+          echo "== gui domain =="; launchctl print gui/$U 2>&1 | head -5
+          echo "== user domain =="; launchctl print user/$U 2>&1 | head -5
+          echo "== LaunchAgents on disk =="
+          ls /System/Library/LaunchAgents/ | egrep -i 'usernoted|notificationcenter' || echo "(none)"
+          echo "== labels in current bootstrap =="
+          launchctl list 2>/dev/null | egrep -i 'usernoted|notif' || echo "(none in session)"
+          sudo launchctl list 2>/dev/null | egrep -i 'usernoted|notif' || echo "(none in system)"
+          echo "== plist labels =="
+          /usr/libexec/PlistBuddy -c 'Print :Label' /System/Library/LaunchAgents/com.apple.usernoted.plist 2>&1
+          /usr/libexec/PlistBuddy -c 'Print :Label' /System/Library/LaunchAgents/com.apple.notificationcenterui.plist 2>&1
+          true
 
-      - name: Install terminal-notifier, fire marker, locate it
+      - name: Baseline + control attempt (B0 — expect NOTFOUND, replicates v1/v2)
         run: |
-          brew install terminal-notifier 2>&1 | tail -2 || true
-          DB="$HOME/Library/Group Containers/group.com.apple.usernoted/db2/db"
-          RO="file:$DB?mode=ro&immutable=1"
-          MARK="tn-$GITHUB_RUN_ID"
-          terminal-notifier -title "AAN $MARK" -message "body $MARK" 2>&1 | tail -2 || true
-          sleep 4
-          echo "== record count after terminal-notifier =="; sqlite3 "$RO" "select count(*) from record;"
-          HEXMARK=$(printf '%s' "$MARK" | xxd -p | tr -d '\n' | tr a-z A-Z)
-          for t in record delivered; do
-            hits=$(sqlite3 "$RO" "select count(*) from $t where hex(data) like '%$HEXMARK%';" 2>&1)
-            echo "$t rows containing terminal-notifier marker: $hits"
-          done
-          echo "== app table (who is registered) =="; sqlite3 "$RO" "select rowid, hex(substr(identifier,1,60)) from app limit 20;" 2>&1 | head -25 || true
-          echo "== app identifiers as text =="; sqlite3 "$RO" "select identifier from app;" 2>&1 | head -25 || true
+          set +e; source /tmp/nc.sh
+          echo "baseline counts: $(counts)"
+          attempt "AAN-B0-$GITHUB_RUN_ID"
+          true
 
-      - name: Decode a real record via xml1 (json fails on NSDate/NSData)
+      - name: Attempt 1 — bootstrap/kickstart usernoted into gui domain
         run: |
-          DB="$HOME/Library/Group Containers/group.com.apple.usernoted/db2/db"
-          RO="file:$DB?mode=ro&immutable=1"
-          echo "== newest record → xml1 =="
-          sqlite3 "$RO" "select hex(data) from record order by rec_id desc limit 1;" \
-            | xxd -r -p | plutil -convert xml1 -o - - 2>&1 | head -80
-          echo "== newest record → plutil -p (human) =="
-          sqlite3 "$RO" "select hex(data) from record order by rec_id desc limit 1;" \
-            | xxd -r -p | plutil -p - 2>&1 | head -60
-          # Save newest few records for fixtures.
-          sqlite3 "$RO" "select hex(data) from record order by rec_id desc limit 5;" > /tmp/spike-records.txt
+          set +e; source /tmp/nc.sh; U=$(id -u)
+          sudo launchctl bootstrap gui/$U /System/Library/LaunchAgents/com.apple.usernoted.plist; echo "sudo bootstrap gui rc=$?"
+          launchctl bootstrap gui/$U /System/Library/LaunchAgents/com.apple.usernoted.plist; echo "bootstrap gui rc=$?"
+          sudo launchctl kickstart -kp gui/$U/com.apple.usernoted; echo "sudo kickstart rc=$?"
+          launchctl kickstart -kp gui/$U/com.apple.usernoted; echo "kickstart rc=$?"
+          sleep 2; ps ax -o pid,comm | grep -i usernoted || echo "(usernoted not running)"
+          attempt "AAN-B1-$GITHUB_RUN_ID"
+          true
 
-      - name: ncprefs readability (xml1 + defaults)
+      - name: Attempt 2 — user domain + notificationcenterui
         run: |
-          P="$HOME/Library/Preferences/com.apple.ncprefs.plist"
-          echo "== xml1 convert (first 40 lines) =="
-          plutil -convert xml1 -o - "$P" 2>&1 | head -40 || echo "(xml1 failed)"
-          echo "== defaults read apps count =="
-          defaults read com.apple.ncprefs apps 2>&1 | head -30 || echo "(defaults failed)"
+          set +e; source /tmp/nc.sh; U=$(id -u)
+          sudo launchctl bootstrap user/$U /System/Library/LaunchAgents/com.apple.usernoted.plist; echo "bootstrap user rc=$?"
+          sudo launchctl kickstart -kp user/$U/com.apple.usernoted; echo "kickstart user rc=$?"
+          sudo launchctl bootstrap gui/$U /System/Library/LaunchAgents/com.apple.notificationcenterui.plist; echo "bootstrap ncui gui rc=$?"
+          sudo launchctl bootstrap user/$U /System/Library/LaunchAgents/com.apple.notificationcenterui.plist; echo "bootstrap ncui user rc=$?"
+          sleep 2; ps ax -o pid,comm | egrep -i 'usernoted|NotificationCenter' || echo "(neither running)"
+          attempt "AAN-B2-$GITHUB_RUN_ID"
+          true
 
-      - name: Upload fixtures
+      - name: Attempt 3 — run /usr/libexec/usernoted directly
+        run: |
+          set +e; source /tmp/nc.sh
+          nohup /usr/libexec/usernoted >/tmp/usernoted.out 2>&1 &
+          sleep 3
+          ps ax -o pid,comm | grep -i usernoted || echo "(direct exec died)"
+          head -5 /tmp/usernoted.out 2>/dev/null
+          attempt "AAN-B3-$GITHUB_RUN_ID"
+          true
+
+      - name: Attempt 4 — ncprefs auth-seed + daemon restart
+        run: |
+          set +e; source /tmp/nc.sh; U=$(id -u)
+          defaults write com.apple.ncprefs apps -array-add "<dict><key>bundle-id</key><string>com.apple.ScriptEditor2</string><key>flags</key><integer>8396814</integer><key>path</key><string>/System/Applications/Utilities/Script Editor.app</string></dict>"
+          defaults write com.apple.ncprefs apps -array-add "<dict><key>bundle-id</key><string>com.apple.osascript</string><key>flags</key><integer>41951246</integer><key>path</key><string>/usr/bin/osascript</string></dict>"
+          echo "== seeded entries (tail) =="; defaults read com.apple.ncprefs apps 2>&1 | tail -14
+          sudo killall cfprefsd 2>/dev/null; sudo killall usernoted 2>/dev/null; sleep 1
+          launchctl kickstart -kp gui/$U/com.apple.usernoted 2>/dev/null || nohup /usr/libexec/usernoted >/tmp/usernoted2.out 2>&1 &
+          sleep 3; ps ax -o pid,comm | grep -i usernoted || echo "(usernoted not running)"
+          attempt "AAN-B4-$GITHUB_RUN_ID"
+          true
+
+      - name: Unified-log forensics — why did/didn't it record
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        run: |
+          set +e
+          echo "== usernoted / usernotifications log lines (last 10m) =="
+          log show --last 10m --info --debug --predicate 'process == "usernoted" OR subsystem CONTAINS[c] "usernotification"' 2>/dev/null | egrep -i 'AAN-|denied|drop|authoriz|deliver|banner|record' | head -50 || echo "(nothing)"
+          echo "== any AAN- marker anywhere in the log =="
+          log show --last 10m --predicate 'eventMessage CONTAINS "AAN-"' 2>/dev/null | head -20 || echo "(nothing)"
+          true
+
+      - name: Decode committed fixture via xml1 + plutil -p (pins title/body)
+        if: always()
+        run: |
+          set +e
+          echo "== xml1 =="
+          xxd -r -p tests/fixtures/nc-record-sample.txt | plutil -convert xml1 -o - - 2>&1
+          echo "== plutil -p =="
+          xxd -r -p tests/fixtures/nc-record-sample.txt | plutil -p - 2>&1
+          true
+
+      - name: Collect artifacts
+        if: always()
+        run: |
+          set +e; source /tmp/nc.sh
+          mkdir -p spike-artifacts
+          echo "final counts: $(counts)" | tee spike-artifacts/final-counts.txt
+          sqlite3 "$RO" "select hex(data) from record order by rec_id desc limit 3" > spike-artifacts/records-newest.hex 2>&1
+          cp /tmp/usernoted.out /tmp/usernoted2.out spike-artifacts/ 2>/dev/null
+          true
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
         with:
-          name: spike-mac-delivery-v2
-          path: /tmp/spike-records.txt
+          name: spike-v3A-bootstrap
+          path: spike-artifacts/
+
+  guidepup:
+    name: v3B — guidepup GUI session then fire+poll (macos-15)
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Write shared helpers
+        run: |
+          cat > /tmp/nc.sh <<'EOF'
+          DB="$HOME/Library/Group Containers/group.com.apple.usernoted/db2/db"
+          RO="file:$DB?mode=ro&immutable=1"
+          counts() { for t in record delivered displayed requests; do printf "%s=%s " "$t" "$(sqlite3 "$RO" "select count(*) from $t" 2>/dev/null || echo ERR)"; done; echo; }
+          findmark() { sqlite3 "$RO" "select count(*) from record where hex(data) like '%'||hex('$1')||'%'" 2>/dev/null || echo 0; }
+          fire() { osascript -e "display notification \"$1\" with title \"AAN-SPIKE\"" 2>&1; }
+          poll() { local m="$1" c i; for i in 1 2 3 4 5 6 7 8; do c=$(findmark "$m"); if [ "${c:-0}" -gt 0 ] 2>/dev/null; then echo "B-VERDICT marker=$m FOUND after $((i*2))s (rows=$c)"; return 0; fi; sleep 2; done; echo "B-VERDICT marker=$m NOTFOUND"; return 1; }
+          attempt() { local tag="$1"; echo "--- [$tag] fire + poll ---"; fire "$tag"; poll "$tag" || true; echo "[$tag] counts: $(counts)"; }
+          EOF
+          echo ok
+
+      - name: Pre-setup diagnosis + baseline
+        run: |
+          set +e; source /tmp/nc.sh
+          echo "managername: $(launchctl managername 2>&1)"
+          ps ax -o pid,comm | egrep -i 'WindowServer|usernoted|NotificationCenter' || echo "(none)"
+          echo "baseline counts: $(counts)"
+          true
+
+      - name: guidepup setup (real GUI/VoiceOver session)
+        uses: guidepup/setup-action@0.21.0
+        continue-on-error: true
+
+      - name: Post-setup diagnosis
+        run: |
+          set +e
+          echo "managername: $(launchctl managername 2>&1)"
+          echo "console owner: $(stat -f%Su /dev/console 2>&1)"
+          ps ax -o pid,comm | egrep -i 'WindowServer|loginwindow|usernoted|NotificationCenter' || echo "(none)"
+          launchctl list 2>/dev/null | egrep -i 'usernoted|notif' || echo "(no labels)"
+          true
+
+      - name: Attempt G1 — osascript after guidepup
+        run: |
+          set +e; source /tmp/nc.sh
+          attempt "AAN-G1-$GITHUB_RUN_ID"
+          true
+
+      - name: Attempt G2 — kickstart usernoted post-guidepup, fire again
+        run: |
+          set +e; source /tmp/nc.sh; U=$(id -u)
+          sudo launchctl kickstart -kp gui/$U/com.apple.usernoted; echo "kickstart rc=$?"
+          launchctl kickstart -kp gui/$U/com.apple.usernoted; echo "user kickstart rc=$?"
+          sleep 2; ps ax -o pid,comm | grep -i usernoted || echo "(usernoted not running)"
+          attempt "AAN-G2-$GITHUB_RUN_ID"
+          true
+
+      - name: Attempt G3 — terminal-notifier after guidepup
+        run: |
+          set +e; source /tmp/nc.sh
+          brew install terminal-notifier 2>&1 | tail -1
+          terminal-notifier -title "AAN-SPIKE" -message "AAN-G3-$GITHUB_RUN_ID" 2>&1
+          poll "AAN-G3-$GITHUB_RUN_ID" || true
+          echo "counts: $(counts)"
+          true
+
+      - name: Unified-log forensics
+        if: always()
+        run: |
+          set +e
+          log show --last 10m --info --debug --predicate 'process == "usernoted" OR subsystem CONTAINS[c] "usernotification"' 2>/dev/null | egrep -i 'AAN-|denied|drop|authoriz|deliver|banner|record' | head -50 || echo "(nothing)"
+          log show --last 10m --predicate 'eventMessage CONTAINS "AAN-"' 2>/dev/null | head -20 || echo "(nothing)"
+          true
+
+      - name: Collect artifacts
+        if: always()
+        run: |
+          set +e; source /tmp/nc.sh
+          mkdir -p spike-artifacts
+          echo "final counts: $(counts)" | tee spike-artifacts/final-counts.txt
+          sqlite3 "$RO" "select hex(data) from record order by rec_id desc limit 3" > spike-artifacts/records-newest.hex 2>&1
+          true
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: spike-v3B-guidepup
+          path: spike-artifacts/
