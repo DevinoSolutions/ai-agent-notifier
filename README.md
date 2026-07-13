@@ -386,14 +386,20 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
     <tr>
       <td><strong>Live Codex</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-codex.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-codex.yml/badge.svg?branch=main" alt="Live Codex" /></a></td>
-      <td>Linux</td>
-      <td>Validates <code>OPENAI_API_KEY</code> against the <strong>live OpenAI API</strong> + the real Codex config-patch wiring ¹</td>
+      <td>Linux · macOS</td>
+      <td>Validates <code>OPENAI_API_KEY</code> against the <strong>live OpenAI API</strong>, boots the real Codex config + PermissionRequest hook wiring, and drives a <strong>real completed <code>codex exec</code> turn</strong> (asserts it echoes a unique token) ¹</td>
     </tr>
     <tr>
       <td><strong>Live Cursor</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-cursor.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-cursor.yml/badge.svg?branch=main" alt="Live Cursor" /></a></td>
       <td>Linux</td>
       <td>Validates the real Cursor config-patch wiring (BYO key) ¹</td>
+    </tr>
+    <tr>
+      <td><strong>TUI Proofs</strong></td>
+      <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/tui-proofs.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/tui-proofs.yml/badge.svg?branch=main" alt="TUI Proofs" /></a></td>
+      <td>macOS</td>
+      <td>Drives the <strong>real</strong> Claude and Codex TUIs in a live <code>tmux</code> session. <strong>F1</strong>: the Claude terminal <strong>bell</strong> sets tmux's <code>window_bell_flag</code>. <strong>F2</strong>: a <strong>real Codex approval modal</strong> appears, our PermissionRequest notification fires, we approve via send-keys, and the guarded command runs — the full approval decision loop that <code>codex exec</code> structurally can't exercise</td>
     </tr>
     <tr>
       <td><strong>Live Toast Linux</strong></td>
@@ -416,7 +422,7 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
   </tbody>
 </table>
 
-¹ Codex and Cursor don't round-trip a prompt through their API in CI — `codex exec` needs OpenAI Tier 1+ WebSocket access, and Cursor is a GUI editor. Their hook **delivery** is fully covered by the unit + e2e suites; these jobs verify the live key and the real config wiring.
+¹ The Live Codex lane completes a real `codex exec` turn, but non-interactive exec structurally can't exercise the **approval decision loop** — with no TTY, codex forces `approval: never` + a read-only sandbox, so the PermissionRequest hook never fires. That loop is proven end to end by the **TUI Proofs** lane (F2), which drives the interactive TUI. Cursor is a GUI editor (BYO key), so its lane validates the live key + real config wiring; its hook **delivery** is fully covered by the unit + e2e suites.
 
 ### Run it yourself
 

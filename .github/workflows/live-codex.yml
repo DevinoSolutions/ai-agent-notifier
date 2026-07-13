@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   live-codex:
-    name: Live Codex (approval loop)
+    name: Live Codex (key + config + real turn)
     strategy:
       fail-fast: false
       matrix:
