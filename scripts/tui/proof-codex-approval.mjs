@@ -10,7 +10,6 @@
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import {
   newDetachedWindow, capturePane, sendKeys, resolveBin, killSession, dumpSession, sleep,
 } from './lib.mjs';
@@ -46,23 +45,14 @@ async function main() {
   const codexBin = resolveBin('codex');
 
   // Authenticate the interactive TUI with the API key. `codex exec` auto-uses the
-  // OPENAI_API_KEY env var, but the interactive TUI defaults to the OAuth *browser*
-  // sign-in flow and parks on auth.openai.com — it never reaches the approval modal
-  // (proven by PR #6 F2 diagnostics). `codex login --api-key` writes CODEX_HOME/
-  // auth.json so the TUI uses the key and skips OAuth. Direct-write fallback in case
-  // the flag differs on this codex version.
+  // OPENAI_API_KEY env var, but the interactive TUI otherwise defaults to the OAuth
+  // *browser* sign-in flow and parks on auth.openai.com — it never reaches the
+  // approval modal (proven by PR #6 F2 diagnostics). `codex login --api-key` was
+  // removed in 0.144.0 ("Pipe the key instead"); writing CODEX_HOME/auth.json
+  // directly is what let the TUI authenticate and reach the modal.
   const key = process.env.OPENAI_API_KEY;
-  const login = spawnSync(codexBin, ['login', '--api-key', key], {
-    env: { ...process.env, CODEX_HOME: codexHome }, encoding: 'utf8', timeout: 30000,
-  });
-  console.log(`F2: codex login --api-key exit=${login.status ?? login.error?.code ?? '?'} ${(login.stderr || login.stdout || '').slice(0, 160).replace(/\s+/g, ' ')}`);
-  const authFile = path.join(codexHome, 'auth.json');
-  if (!fs.existsSync(authFile)) {
-    fs.writeFileSync(authFile, JSON.stringify({ OPENAI_API_KEY: key }));
-    console.log('F2: login did not write auth.json — wrote fallback {OPENAI_API_KEY}.');
-  } else {
-    console.log('F2: auth.json present after login.');
-  }
+  fs.writeFileSync(path.join(codexHome, 'auth.json'), JSON.stringify({ OPENAI_API_KEY: key }));
+  console.log('F2: wrote CODEX_HOME/auth.json for API-key auth (skips OAuth browser flow).');
 
   // Launch the REAL interactive codex TUI in a NON-active window. `bash -c` (not
   // -lc) keeps the inherited PATH; we pass codex's absolute path for good measure.
@@ -93,23 +83,25 @@ async function main() {
   }
   if (!sawModal) fail('codex approval modal never appeared in the TUI.');
   console.log(`F2: approval modal detected. pane:\n${tail(safeCapture(win), 20)}`);
-  console.log('F2: approving via send-keys.');
+  console.log('F2: approving — re-asserting the confirm key until the command runs.');
 
-  // Approve. codex 0.144 approval modals accept the highlighted Yes/Approve via
-  // Enter; try '1' (numbered choice) and 'y' as fallbacks for other key handling.
-  sendKeys(SESSION, win, ['Enter']);
-  await sleep(1500);
-  sendKeys(SESSION, win, ['1']);
-  await sleep(500);
-  sendKeys(SESSION, win, ['y']);
-
-  // Turn completes when the sentinel appears (guarded command ran after approval).
+  // Approve AND wait together, re-sending the confirm key each second while the
+  // modal is still up. A single keystroke can land before the modal is interactive
+  // — PR #6 detected the modal but it stayed unanswered from one-shot keys. The
+  // codex 0.144 modal highlights "1. Yes, proceed (y)" and says "Press enter to
+  // confirm"; 'y' is its explicit shortcut. Guard on isApprovalModal so we stop
+  // pressing the moment the modal clears (avoids stray input into the next prompt).
   let done = false;
   for (let i = 0; i < 90; i++) {
-    await sleep(1000);
     if (fs.existsSync(sentinel)) { done = true; break; }
+    if (isApprovalModal(safeCapture(win))) {
+      sendKeys(SESSION, win, ['y']);
+      await sleep(300);
+      sendKeys(SESSION, win, ['Enter']);
+    }
+    await sleep(1000);
   }
-  console.log(`F2: pane tail:\n${tail(safeCapture(win), 15)}`);
+  console.log(`F2: pane tail:\n${tail(safeCapture(win), 20)}`);
 
   if (!done) fail('approved in the TUI but the guarded command never ran (turn did not complete).');
 
