@@ -64,11 +64,13 @@ test('extractRecordFields parses titl/body/app and unescapes XML entities (synth
 // decodeRecordPlist turns a hex bplist BLOB into { title, body, app, date } via
 // `plutil -convert xml1`. The fixture is a REAL record captured from a macos-15
 // runner by the spike; title/body/app are pinned to the exact decoded values.
-// NOTE: the title carries a curly apostrophe (U+2019) — keep this file UTF-8.
+// NOTE: the title's apostrophe is U+2019; we build it with String.fromCharCode
+// so this assertion stays pure-ASCII and byte-identical across any file encoding.
 test('decodeRecordPlist extracts title and body from a real NC record', { skip: (!hasPlutil || !haveRecordFixture) && 'needs plutil + spike fixture' }, () => {
   const hex = fs.readFileSync(recordFixture, 'utf8').trim();
   const rec = decodeRecordPlist(hex);
-  assert.equal(rec.title, 'See what’s new in macOS 15');
+  const rsquo = String.fromCharCode(0x2019); // U+2019 right single quotation mark
+  assert.equal(rec.title, `See what${rsquo}s new in macOS 15`);
   assert.equal(rec.body, 'Take a look at the new features.');
   assert.equal(rec.app, 'com.apple.tips');
 });
