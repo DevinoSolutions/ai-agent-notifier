@@ -57,7 +57,9 @@ async function main() {
     const { verifyDelivery } = await import('../src/platforms/macos-delivery.mjs');
     // Gemini's toast is generic ("<project>: Needs your input" / title "Gemini").
     // Fresh runner ⇒ the only "Gemini"-titled record in the window is ours.
-    const del = await verifyDelivery('Gemini', { timeoutMs: 20000, pollMs: 1000 });
+    // 45s: NC records land slower after a full Gemini turn than in the bare toast lane; matches the
+    // widened Claude lane (PR #6, where a 20s window flaked mid-delivery). A genuine drop still times out.
+    const del = await verifyDelivery('Gemini', { timeoutMs: 45000, pollMs: 1000 });
     if (!del.delivered) {
       console.error(`FAIL [PRODUCT]: no Notification Center delivery record titled "Gemini" (${del.reason})`);
       process.exit(1);

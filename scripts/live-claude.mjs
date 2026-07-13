@@ -55,7 +55,10 @@ async function main() {
   // our marker. Requires the runner's FDA grant (the workflow runs preflight).
   if (process.platform === 'darwin') {
     const { verifyDelivery } = await import('../src/platforms/macos-delivery.mjs');
-    const del = await verifyDelivery(marker, { timeoutMs: 20000, pollMs: 1000 });
+    // 45s: NC records land slower after a full Claude turn (warm, busy runner) than in the
+    // bare osascript toast lane; a 20s window flaked mid-delivery on macos-15 (PR #6) even though
+    // claude ran and the ntfy push landed. Widen for a required check — a genuine drop still times out.
+    const del = await verifyDelivery(marker, { timeoutMs: 45000, pollMs: 1000 });
     if (!del.delivered) {
       console.error(`FAIL [PRODUCT]: no Notification Center delivery record for "${marker}" (${del.reason})`);
       process.exit(1);
