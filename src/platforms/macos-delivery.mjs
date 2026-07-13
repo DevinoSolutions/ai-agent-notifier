@@ -8,6 +8,12 @@
 // The core idea: macOS logs every DELIVERED notification in Notification
 // Center's SQLite DB, including when the banner is suppressed by Focus/DND. So a
 // row in that DB proves delivery in a way `osascript` exit codes cannot.
+//
+// Delivery is proven by scanning the raw record BLOB for our (ASCII) marker;
+// metadata is a best-effort `plutil -convert xml1` decode. Real records embed
+// NSDate/NSData plus a nested NSKeyedArchiver bplist, which `plutil -convert
+// json` rejects ("invalid object in plist for destination format"), so json is
+// never used here — xml1 always succeeds and we regex the fields out of it.
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,9 +37,39 @@ export function ncDbPath() {
   return null;
 }
 
+// Undo the five predefined XML entities plutil emits inside <string> values.
+// Order matters: &amp; is undone LAST so an escaped entity such as "&amp;lt;"
+// round-trips to the literal "&lt;" rather than being collapsed to "<".
+function unescapeXml(s) {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+// Pull a notification's display fields out of plutil's xml1 output. Real NC
+// records nest titl/body under a `req` dict and keep the source bundle id at the
+// top level as `app`; first-match regexes find each regardless of nesting (the
+// embedded NSKeyedArchiver blob is base64 inside <data>, so it can never
+// false-match a <key>…</key><string> pair). Extracted strings are XML-unescaped.
+// Pure and synchronous — the plutil shell-out lives in decodeRecordPlist.
+export function extractRecordFields(xml) {
+  const pick = (re) => { const m = xml.match(re); return m ? unescapeXml(m[1]) : ''; };
+  const date = xml.match(/<key>date<\/key>\s*<date>([^<]*)<\/date>/);
+  return {
+    title: pick(/<key>titl<\/key>\s*<string>([^<]*)<\/string>/),
+    body: pick(/<key>body<\/key>\s*<string>([^<]*)<\/string>/),
+    app: pick(/<key>app<\/key>\s*<string>([^<]*)<\/string>/),
+    date: date ? date[1] : null,
+  };
+}
+
 // Decode one hex-encoded bplist record BLOB into { title, body, app, date }.
-// Returns null on any decode failure. Uses plutil via a temp file (plutil reads
-// stdin as '-', but a temp file is robust across plutil versions).
+// Returns null on any failure; never throws. Converts via `plutil -convert xml1`
+// (json rejects the NSDate/NSData a real record carries) written through a temp
+// file — robust across plutil versions — then regexes the display fields out.
 export function decodeRecordPlist(hex) {
   if (!hex || !/^[0-9a-fA-F]+$/.test(hex.trim())) return null;
   const clean = hex.trim();
@@ -43,15 +79,8 @@ export function decodeRecordPlist(hex) {
     if (buf.length === 0) return null;
     tmp = path.join(os.tmpdir(), `aan-nc-${process.pid}-${buf.length}.bplist`);
     fs.writeFileSync(tmp, buf);
-    const json = execFileSync('plutil', ['-convert', 'json', '-o', '-', tmp], { encoding: 'utf8' });
-    const obj = JSON.parse(json);
-    const req = obj.req || obj.request || {};
-    return {
-      title: String(req.titl ?? req.title ?? ''),
-      body: String(req.body ?? req.subt ?? ''),
-      app: String(obj.app ?? obj.bundleid ?? ''),
-      date: obj.date ?? null,
-    };
+    const xml = execFileSync('plutil', ['-convert', 'xml1', '-o', '-', tmp], { encoding: 'utf8' });
+    return extractRecordFields(xml);
   } catch {
     return null;
   } finally {
@@ -76,22 +105,31 @@ function queryRecordHex(dbPath, limit = 20) {
   }
 }
 
-// Poll the NC DB until a delivered record's title or body contains `marker`, or
-// timeout. Returns { delivered, record?, reason? }. reason ∈
+// Poll the NC DB until a delivered record contains `marker`, or timeout. Matching
+// runs on the RAW record bytes, never on a plutil decode: our markers are pure
+// ASCII, so they land as a contiguous byte run inside the bplist even when the
+// record can't be fully decoded — so a hit does not depend on (and is not lost
+// to) a decode failure. (This holds only because the marker is ASCII embedded in
+// an ASCII string; a marker inside a UTF-16-stored value would not be contiguous.)
+// The decode is best-effort metadata; a null decode still counts as delivered.
+// Returns { delivered, record?, reason? }. reason ∈
 // { 'no-nc-db', 'tcc-blocked', 'timeout' }.
 export async function verifyDelivery(marker, { timeoutMs = 30000, pollMs = 1000 } = {}) {
   const dbPath = ncDbPath();
   if (!dbPath) return { delivered: false, reason: 'no-nc-db' };
+  const markerBuf = Buffer.from(String(marker));
   const deadline = Date.now() + timeoutMs;
   let lastError = null;
   do {
     const { rows, error } = queryRecordHex(dbPath);
     if (error) lastError = error;
     for (const hex of rows) {
-      const rec = decodeRecordPlist(hex);
-      if (rec && (rec.title.includes(marker) || rec.body.includes(marker))) {
-        return { delivered: true, record: rec };
-      }
+      if (!Buffer.from(hex, 'hex').includes(markerBuf)) continue;
+      // Hit on the raw BLOB. Decode for metadata, but fall back to an empty
+      // record so a decode failure never downgrades a hit to a miss and callers'
+      // record.{title,body,app} stay safe.
+      const record = decodeRecordPlist(hex) || { title: '', body: '', app: '', date: null };
+      return { delivered: true, record };
     }
     if (Date.now() < deadline) await sleep(pollMs);
   } while (Date.now() < deadline);
@@ -119,6 +157,48 @@ export function decodeAuthFlags(flags) {
   return (flags & AUTH_BIT) ? 'authorized' : 'unauthorized';
 }
 
+// Parse plutil's xml1 rendering of com.apple.ncprefs.plist into an array of
+// { 'bundle-id', flags } entries — the only fields notificationAuthState needs.
+// json conversion is unusable here: real ncprefs embeds NSData path blobs that
+// `plutil -convert json` rejects. We walk the `apps` <array>, isolating each
+// direct-child <dict> by tracking dict/array nesting depth (a real entry may
+// embed nested dicts and <data> blobs), then regex the bundle-id + flags out of
+// each entry's own block — robust to key order within an entry. Base64 inside
+// <data> carries no angle brackets, so it never trips the tag walker. Returns []
+// when there is no apps array. Pure/synchronous.
+export function parseNcprefsApps(xml) {
+  const out = [];
+  const open = xml.match(/<key>apps<\/key>\s*<array>/);
+  if (!open) return out;
+  const tag = /<(\/?)(?:dict|array)>/g;
+  tag.lastIndex = open.index + open[0].length; // start just inside the apps <array>
+  let depth = 0;       // nesting depth relative to the apps-array interior
+  let entryStart = -1; // offset where the current top-level entry <dict> began
+  let m;
+  while ((m = tag.exec(xml))) {
+    const closing = m[1] === '/';
+    const isDict = m[0].includes('dict');
+    if (!closing) {
+      if (depth === 0 && isDict) entryStart = m.index;
+      depth += 1;
+    } else {
+      if (depth === 0) break; // the apps array's own closing </array>
+      depth -= 1;
+      if (depth === 0 && isDict && entryStart !== -1) {
+        const block = xml.slice(entryStart, tag.lastIndex);
+        const bid = block.match(/<key>bundle-?id<\/key>\s*<string>([^<]*)<\/string>/);
+        const flags = block.match(/<key>flags<\/key>\s*<integer>(-?\d+)<\/integer>/);
+        out.push({
+          'bundle-id': bid ? unescapeXml(bid[1]) : '',
+          flags: flags ? parseInt(flags[1], 10) : NaN,
+        });
+        entryStart = -1;
+      }
+    }
+  }
+  return out;
+}
+
 // Read com.apple.ncprefs.plist and classify the app that owns osascript-posted
 // notifications on this host. Returns { state, app?, detail }.
 export function notificationAuthState() {
@@ -126,22 +206,22 @@ export function notificationAuthState() {
     return { state: 'unknown', detail: 'not macOS' };
   }
   const plist = path.join(os.homedir(), 'Library', 'Preferences', 'com.apple.ncprefs.plist');
-  let json;
+  let apps;
   try {
-    json = JSON.parse(execFileSync('plutil', ['-convert', 'json', '-o', '-', plist], { encoding: 'utf8' }));
+    const xml = execFileSync('plutil', ['-convert', 'xml1', '-o', '-', plist], { encoding: 'utf8' });
+    apps = parseNcprefsApps(xml);
   } catch {
     return { state: 'unknown', detail: 'ncprefs unreadable (may need Full Disk Access)' };
   }
-  const apps = Array.isArray(json.apps) ? json.apps : [];
   // osascript notifications are attributed to Script Editor (or the invoking
   // terminal). Look for the most relevant bundle id; fall back to the aggregate.
   const OWNERS = ['com.apple.ScriptEditor2', 'com.apple.Terminal', 'com.apple.osascript'];
-  const entry = apps.find((a) => OWNERS.includes(a['bundle-id'] || a.bundleid))
-    || apps.find((a) => /ScriptEditor|osascript|Terminal/i.test(a['bundle-id'] || a.bundleid || ''));
+  const entry = apps.find((a) => OWNERS.includes(a['bundle-id']))
+    || apps.find((a) => /ScriptEditor|osascript|Terminal/i.test(a['bundle-id'] || ''));
   if (!entry) {
     return { state: 'unknown', app: null, detail: 'no notification-owning app registered yet — send one toast to register in System Settings → Notifications' };
   }
-  const app = entry['bundle-id'] || entry.bundleid || 'unknown';
+  const app = entry['bundle-id'] || 'unknown';
   const state = decodeAuthFlags(entry.flags);
   const detail = state === 'authorized'
     ? `${app} is authorized to post notifications`
