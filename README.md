@@ -405,7 +405,7 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
       <td><strong>Live Toast Linux</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-linux.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-linux.yml/badge.svg?branch=main" alt="Toast Linux" /></a></td>
       <td>Linux</td>
-      <td>Fires through the real <code>notify-send</code> backend into a <strong>real <code>dunst</code> daemon</strong>, then reads its history and asserts it captured the exact title + body</td>
+      <td>Fires through the real <code>notify-send</code> backend into a <strong>real <code>dunst</code> daemon</strong>, then reads its history and asserts it captured the exact title + body — and goes one layer further, proving the notification is <strong>rendered on-screen</strong>: it captures the X display and reads the banner's text back with OCR (nonce present in a during-display frame, absent from the pre-fire frame) ²</td>
     </tr>
     <tr>
       <td><strong>Live Toast macOS</strong><br/>(delivery capture)</td>
@@ -424,6 +424,8 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
 
 ¹ The Live Codex lane completes a real `codex exec` turn, but non-interactive exec structurally can't exercise the **approval decision loop** — with no TTY, codex forces `approval: never` + a read-only sandbox, so the PermissionRequest hook never fires. That loop is proven end to end by the **TUI Proofs** lane (F2), which drives the interactive TUI. Cursor is a GUI editor (BYO key), so its lane validates the live key + real config wiring; its hook **delivery** is fully covered by the unit + e2e suites.
 
+² The on-screen render proof draws the banner with **our** tuned `dunstrc` (large mono font, high contrast) on a **virtual** X display (Xvfb), so it proves the product path renders legible, machine-readable pixels — not that every user's desktop theme renders identically. macOS has no equivalent lane: on the hosted runner a real notification records in Notification Center but never presents a banner, and the accessibility/screen-capture routes are walled off by TCC, so **layer 2 (recorded in Notification Center) is the honest macOS CI ceiling** — on-screen rendering there is a real-machine concern checked by `aan doctor --deep`. See [`docs/research/2026-07-15-layer3-render-proof.md`](docs/research/2026-07-15-layer3-render-proof.md).
+
 ### Run it yourself
 
 ```bash
@@ -434,7 +436,7 @@ npm run toast:demo  # fire real desktop toasts, every event
 
 ### The one thing CI can't prove
 
-CI goes further than "the call returned 0." On **Linux** it reads the payload back out of a real `dunst` daemon; on **macOS** it reads the delivery back out of Notification Center's own database — so a notification that was silently dropped for lack of permission records nothing and turns CI **red** instead of green. What no headless runner can prove is the last millimetre: a human's eyes actually seeing the banner render. Do Not Disturb / Focus still suppress the on-screen banner while the notification is recorded as delivered, so "reached Notification Center" is not the same as "a person saw it." To confirm with your own eyes — and to check your own machine's notification permission — run `npm run toast:demo` and `aan doctor --deep`.
+CI goes further than "the call returned 0." On **Linux** it reads the payload back out of a real `dunst` daemon **and** captures the X display to OCR the banner's text off the screen — pixels, not just a database row. On **macOS** it reads the delivery back out of Notification Center's own database — so a notification that was silently dropped for lack of permission records nothing and turns CI **red** instead of green. What no headless runner can prove is the last millimetre: a human's eyes actually seeing the banner. On macOS the on-screen banner can't be captured in CI at all (the hosted runner records the notification but never presents it, and TCC walls off the accessibility/screen-capture routes — layer 2 is the ceiling ²), and everywhere Do Not Disturb / Focus can suppress the on-screen banner while the notification is still recorded as delivered. So "reached the notification store" is not always "a person saw it." To confirm with your own eyes — and to check your own machine's notification permission — run `npm run toast:demo` and `aan doctor --deep`.
 
 ## Contributing
 
