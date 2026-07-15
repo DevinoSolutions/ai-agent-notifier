@@ -5,16 +5,29 @@
 // the framebuffer with tesseract; these helpers make that read reliable and its
 // match unambiguous.
 
-// OCR-safe alphabet: excludes the glyph pairs tesseract most often confuses at
-// banner sizes — 0/O, 1/I/L, 5/S, 8/B, 2/Z, and 9 (which tesseract read as `S`
-// on a real render, Actions run 29394142374). The remaining digits 3 4 6 7 are
-// each empirically confirmed to OCR correctly at DejaVu Sans Mono 26 (runs
-// 29391999880 and 29394142374). What remains is A–Z + 3 4 6 7 after removing the
-// ambiguous glyphs.
-export const OCR_SAFE_ALPHABET = 'ACDEFGHJKMNPQRTUVWXY3467';
+// OCR-safe alphabet: OBSERVED-CORRECT GLYPHS ONLY. A static banner renders
+// identical pixels every frame, so an OCR misread is systematic — the same glyph
+// misreads on every frame and the multi-frame retry cannot rescue it. The only
+// safe policy for a gating check is therefore: a character may enter this
+// alphabet ONLY if it has been captured OCR-reading-back-correctly in a real
+// render. Add a new char only with a captured render proving it reads back.
+//
+// This set is exactly the characters observed correct across the three real
+// renders to date (GADNNM36RW, U*NRP7MY4E, 7CNHVTVE3G): A C D E G H M N P R T U
+// V W Y and 3 4 6 7. Excluded for two distinct reasons:
+//   - confusable and banned outright (OCR_EXCLUDED): 0 O 1 I L 5 S 8 B 2 Z 9;
+//   - not yet observed on a real render (F J K Q X): held out until a capture
+//     proves them — Q/O in particular is a classic confusable, and O is banned.
+export const OCR_SAFE_ALPHABET = 'ACDEGHMNPRTUVWY3467';
 
-// Characters deliberately kept OUT of the alphabet, for the no-ambiguity test.
+// Characters deliberately kept OUT of the alphabet because they are known-
+// confusable glyphs, for the no-ambiguity test.
 export const OCR_EXCLUDED = '0O1IL5S8B2Z9';
+
+// Characters held out only because they haven't been observed OCR-correct on a
+// real render yet (not confirmed confusable). Promote to OCR_SAFE_ALPHABET once
+// a captured render proves each reads back.
+export const OCR_NOT_YET_OBSERVED = 'FJKQX';
 
 // A random nonce drawn only from the OCR-safe alphabet. Default length 10 keeps
 // it short enough to fit one banner line in a large mono font, long enough that

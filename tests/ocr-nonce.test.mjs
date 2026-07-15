@@ -9,13 +9,21 @@ import assert from 'node:assert/strict';
 import {
   OCR_SAFE_ALPHABET,
   OCR_EXCLUDED,
+  OCR_NOT_YET_OBSERVED,
   generateNonce,
   normalizeOcr,
   ocrContainsNonce,
 } from '../scripts/lib/ocr-nonce.mjs';
 
-describe('OCR_SAFE_ALPHABET — excludes ambiguous glyphs', () => {
-  it('contains none of the excluded characters 0 O 1 I L 5 S 8 B 2 Z 9', () => {
+describe('OCR_SAFE_ALPHABET — observed-correct glyphs only', () => {
+  it('is exactly the set observed OCR-correct on real renders', () => {
+    // Pinning the exact string enforces the policy: a char enters only with a
+    // captured render proving it reads back. Changing this without such a
+    // capture should break this test on purpose.
+    assert.equal(OCR_SAFE_ALPHABET, 'ACDEGHMNPRTUVWY3467');
+  });
+
+  it('contains none of the known-confusable characters 0 O 1 I L 5 S 8 B 2 Z 9', () => {
     for (const ch of OCR_EXCLUDED) {
       assert.ok(!OCR_SAFE_ALPHABET.includes(ch), `alphabet must not contain "${ch}"`);
     }
@@ -23,6 +31,15 @@ describe('OCR_SAFE_ALPHABET — excludes ambiguous glyphs', () => {
 
   it('excludes 9 specifically (tesseract read it as S on a real render)', () => {
     assert.ok(!OCR_SAFE_ALPHABET.includes('9'), 'alphabet must not contain "9"');
+  });
+
+  it('excludes F J K Q X — not yet observed OCR-correct on a real render', () => {
+    // These are held out because no capture has proven them (not because they
+    // are known-confusable). A static banner misreads systematically, so an
+    // unverified glyph is an unacceptable random-red risk on a gating check.
+    for (const ch of OCR_NOT_YET_OBSERVED) {
+      assert.ok(!OCR_SAFE_ALPHABET.includes(ch), `alphabet must not contain unobserved "${ch}"`);
+    }
   });
 
   it('is drawn only from uppercase letters and the confirmed-safe digits 3 4 6 7', () => {

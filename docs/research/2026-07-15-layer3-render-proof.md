@@ -81,13 +81,18 @@ renders identically.
 
 - `linux.sendToast` maps `notification.priority` through `URGENCY_MAP`; it does
   **not** read a `urgency` field. Fire with `priority`.
-- Nonce alphabet excludes `0 O 1 I L 5 S 8 B 2 Z` and `9` — the glyph pairs
-  tesseract most often confuses at banner size (`scripts/lib/ocr-nonce.mjs`). The
-  `9` exclusion was earned: on run `29394142374` tesseract read a rendered `9` as
-  `S`, failing the gate. The spike nonce happened to contain no `9`, so the
-  ambiguity only surfaced once the gate ran on a fresh nonce — exactly the
-  measure-flake-before-gating step the design's honesty rail calls for. Digits
-  `3 4 6 7` are each confirmed to OCR correctly on real renders.
+- Nonce alphabet is **observed-correct glyphs only** (`scripts/lib/ocr-nonce.mjs`):
+  `ACDEGHMNPRTUVWY3467` — exactly the characters captured OCR-reading-back-correctly
+  across the three real renders (`GADNNM36RW`, `U*NRP7MY4E`, `7CNHVTVE3G`). A
+  static banner renders identical pixels every frame, so an OCR misread is
+  **systematic** — it repeats on every frame and the multi-frame retry cannot
+  rescue it. So a glyph may gate a required check only once a capture proves it
+  reads back. Excluded for two reasons: known-confusable and banned outright
+  (`0 O 1 I L 5 S 8 B 2 Z 9` — the `9` earned its place when run `29394142374`
+  read a rendered `9` as `S`, failing the gate), and not-yet-observed (`F J K Q X`,
+  held out until a capture proves them — `Q`/`O` is a classic confusable and `O`
+  is already banned). This is the measure-flake-before-gating step the design's
+  honesty rail calls for.
 - Match with a normalized `.includes(nonce)`, never full-string equality: OCR
   inserts stray whitespace and the notification icon adds a stray leading char.
 - `dunst` logs a benign `CRITICAL: Cannot acquire org.freedesktop.Notifications`
