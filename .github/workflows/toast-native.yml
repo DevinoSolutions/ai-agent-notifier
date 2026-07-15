@@ -1,8 +1,8 @@
 name: Toast Native
 
-# Real native desktop-notification coverage on macOS + Windows: fires the real
-# osascript / BurntToast backend and asserts the OS accepted the toast. Headless
-# CI can't prove a human SAW it — see `npm run toast:demo`.
+# Real native desktop-notification coverage on Windows: fires the real BurntToast
+# backend and asserts the OS accepted the toast. macOS delivery is proven by the
+# toast-macos.yml lane (Notification Center DB capture).
 on:
   push:
     paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     env:
       AAN_TOAST_LIVE: '1'

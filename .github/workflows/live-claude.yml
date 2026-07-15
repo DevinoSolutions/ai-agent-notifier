@@ -17,7 +17,11 @@ concurrency:
 jobs:
   live-claude:
     name: Live Claude E2E (required, paid)
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    runs-on: ${{ matrix.os }}
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
@@ -31,3 +35,10 @@ jobs:
         run: npm install -g @anthropic-ai/claude-code@2.1.205
       - name: Drive Claude end-to-end (hard-fails if key missing or hook silent)
         run: node scripts/live-claude.mjs
+      - name: Diagnostics (always, macOS)
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: live-claude-macos-diag
+          path: ${{ runner.temp }}/diag
+        continue-on-error: true

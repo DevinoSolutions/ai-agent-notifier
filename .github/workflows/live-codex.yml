@@ -1,9 +1,11 @@
 name: Live Codex
 
-# Required (no continue-on-error) and runs unconditionally: the script hard-fails
-# if OPENAI_API_KEY is missing. codex exec needs OpenAI Tier 1+ WebSocket access,
-# so this job validates the live key + the real config-patch wiring instead of an
-# API round-trip.
+# Validates the codex EXEC path: OPENAI_API_KEY is valid, our codex config +
+# PermissionRequest hook wiring is accepted by the real codex binary, and codex
+# completes a real turn under exec. The approval DECISION loop (allow/deny) is
+# NOT provable here — non-interactive `codex exec` forces approval:never +
+# read-only sandbox — it is proven by the interactive TUI lane (TUI Proofs / F2,
+# scripts/tui/proof-codex-approval.mjs).
 on:
   push:
     branches: [main]
@@ -17,8 +19,12 @@ concurrency:
 
 jobs:
   live-codex:
-    name: Live Codex (key + hook wiring validation)
-    runs-on: ubuntu-latest
+    name: Live Codex (key + config + real turn)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15]
+    runs-on: ${{ matrix.os }}
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
@@ -32,13 +38,8 @@ jobs:
         run: npm install -g @openai/codex@0.144.0
       - name: Verify OPENAI_API_KEY reaches OpenAI API
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $OPENAI_API_KEY" \
-            https://api.openai.com/v1/models)
-          echo "OpenAI API status for /v1/models: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "FAIL: OpenAI API returned $STATUS — key invalid or inaccessible"
-            exit 1
-          fi
-      - name: Validate Codex config-patch wiring (hard-fails if key missing)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $OPENAI_API_KEY" https://api.openai.com/v1/models)
+          echo "OpenAI API status: $STATUS"
+          [ "$STATUS" = "200" ] || { echo "FAIL: OpenAI API returned $STATUS"; exit 1; }
+      - name: Codex exec — key valid + config accepted + real completed turn
         run: node scripts/live-codex.mjs

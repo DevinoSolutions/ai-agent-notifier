@@ -1,0 +1,70 @@
+name: Toast macOS
+
+# Delivery-capture proof: fires the REAL osascript backend and asserts the
+# notification was delivered by reading Notification Center's SQLite DB. Unlike
+# an exit-code check, this fails when a real user would have seen nothing.
+on:
+  push:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+  pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  toast-macos:
+    name: Live Toast macOS (delivery capture)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm install
+
+      - name: Preflight — OS/SIP status (info) + resolve & assert NC DB is readable
+        run: |
+          sw_vers
+          csrutil status || true   # informational only — FDA is unnecessary; the NC DB is world-readable
+          DB="$(node -e "import('./src/platforms/macos-delivery.mjs').then(m=>console.log(m.ncDbPath()||''))")"
+          if [ -z "$DB" ]; then echo "FAIL [INFRA]: no NC DB path resolved"; exit 1; fi
+          echo "NC DB: $DB"
+          if [ ! -r "$DB" ]; then echo "FAIL [INFRA]: NC DB is not readable: $DB"; exit 1; fi
+          echo "PASS: NC DB resolved and readable (no FDA grant needed)"
+
+      - name: No-false-positive guard — matcher must not hallucinate a never-fired marker
+        run: |
+          # Probe a marker that is NEVER fired: verifyDelivery must return
+          # delivered:false. Proves the raw-buffer matcher does not hallucinate hits,
+          # so a PASS in the positive step below is meaningful and not a fluke.
+          MARKER="never-fired-$GITHUB_RUN_ID-$RANDOM"
+          echo "Probing never-fired marker: $MARKER"
+          MK="$MARKER" node -e "import('./src/platforms/macos-delivery.mjs').then(async m=>{const r=await m.verifyDelivery(process.env.MK,{timeoutMs:4000,pollMs:1000}); if(r.delivered){console.error('FAIL: matcher reported a never-fired marker as delivered — false positive'); process.exit(1)} console.log('PASS: never-fired marker absent (delivered:false, reason='+r.reason+')')})"
+
+      - name: Positive — real backend delivers + records exact payload
+        env:
+          AAN_TOAST_LIVE: '1'
+        run: node scripts/live-toast-macos.mjs
+
+      - name: Product self-proof — doctor --deep agrees (strict)
+        env:
+          AAN_DOCTOR_STRICT: '1'
+        run: node cli/index.mjs doctor --deep --json
+
+      - name: Diagnostics bundle (always)
+        if: always()
+        run: |
+          mkdir -p /tmp/diag
+          node -e "import('./src/platforms/macos-delivery.mjs').then(m=>console.log(JSON.stringify(m.notificationAuthState())))" > /tmp/diag/auth.json 2>&1 || true
+          DB="$(node -e "import('./src/platforms/macos-delivery.mjs').then(m=>console.log(m.ncDbPath()||''))")"
+          [ -n "$DB" ] && sqlite3 "file:$DB?mode=ro" "select hex(data) from record order by rowid desc limit 10;" > /tmp/diag/records.hex 2>&1 || true
+          screencapture -x /tmp/diag/screen.png 2>&1 || true
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: toast-macos-diagnostics
+          path: /tmp/diag

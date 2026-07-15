@@ -185,7 +185,7 @@ Config lives at `~/.ai-agent-notifier/config.json`:
 }
 ```
 
-`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent -- for Claude Code (>=2.1.141) it rings through Claude Code's own terminal write path (hook JSON `terminalSequence`), which is safe in tmux, GNU screen, and on Windows per Claude Code's docs; other agents get a direct TTY/console bell. `webhook` posts to Slack, Discord, Telegram, or any URL (see below). `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound and is ignored on macOS/Linux; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
+`ntfy.click` is the URL opened when you tap a phone notification (empty = no link). `terminalBell` rings the terminal that launched the agent -- for Claude Code (>=2.1.141) it rings through Claude Code's own terminal write path (hook JSON `terminalSequence`), which is safe in tmux, GNU screen, and on Windows per Claude Code's docs; other agents get a direct TTY/console bell. `webhook` posts to Slack, Discord, Telegram, or any URL (see below). `sentry` is opt-in error reporting (see [Error visibility](#error-visibility)). Per-event `toastSound` names a Windows [BurntToast](https://github.com/Windos/BurntToast) sound; on macOS the name is mapped to the closest built-in system sound (Windows names like `IM`/`Reminder` are translated, and `Default` or unrecognized names fall back to the system default), while on Linux it is ignored; `priority` (`min` / `low` / `default` / `high` / `urgent`) drives both the ntfy push priority and the Linux `notify-send` urgency.
 
 ### ntfy -- Phone Push Notifications
 
@@ -337,7 +337,7 @@ Removes all managed hooks from every tool's config. Original configs are backed 
 
 ## Testing
 
-Everything below is verified against the **real thing** — no mocks, no stubs, no fakes. Real ntfy.sh push delivery, a real Linux notification daemon receiving the exact payload, the real agent CLIs installed from npm and driven end to end, and the real native OS toast backends actually firing. Every job is **required** and **hard-fails**: a broken key, a renamed secret, or a hook that doesn't deliver turns CI red instead of skipping silently.
+Everything below is verified against the **real thing** — no mocks, no stubs, no fakes. Real ntfy.sh push delivery, a real Linux notification daemon receiving the exact payload, the real agent CLIs installed from npm and driven end to end, and the real native OS toast backends firing — then **read back out of the OS's own notification store** (`dunst` on Linux, Notification Center's database on macOS) to prove the payload actually landed, not just that the call returned 0. Every job is **required** and **hard-fails**: a broken key, a renamed secret, or a hook that doesn't deliver turns CI red instead of skipping silently.
 
 ### What CI verifies on every run — all real, all platforms
 
@@ -374,20 +374,20 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
     <tr>
       <td><strong>Live Claude</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-claude.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-claude.yml/badge.svg?branch=main" alt="Live Claude" /></a></td>
-      <td>Linux</td>
-      <td>Drives the <strong>real</strong> Claude CLI end to end (paid); hard-fails if the hook doesn't deliver a notification</td>
+      <td>Linux · macOS</td>
+      <td>Drives the <strong>real</strong> Claude CLI end to end (paid); <strong>hard-fails</strong> if the Stop hook doesn't deliver a real ntfy push · on macOS it also does a <strong>best-effort</strong> Notification Center read-back (logged, non-blocking — the hard osascript→NC delivery proof is the dedicated Toast macOS lane)</td>
     </tr>
     <tr>
       <td><strong>Live Gemini</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-gemini.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-gemini.yml/badge.svg?branch=main" alt="Live Gemini" /></a></td>
-      <td>Linux</td>
-      <td>Drives the <strong>real</strong> Gemini CLI end to end; hard-fails if the hook doesn't deliver a notification</td>
+      <td>Linux · macOS</td>
+      <td>Drives the <strong>real</strong> Gemini CLI end to end; <strong>hard-fails</strong> if the hook doesn't deliver a real ntfy push · on macOS it also does a <strong>best-effort</strong> Notification Center read-back (logged, non-blocking — the hard NC delivery proof is the dedicated Toast macOS lane)</td>
     </tr>
     <tr>
       <td><strong>Live Codex</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-codex.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/live-codex.yml/badge.svg?branch=main" alt="Live Codex" /></a></td>
-      <td>Linux</td>
-      <td>Validates <code>OPENAI_API_KEY</code> against the <strong>live OpenAI API</strong> + the real Codex config-patch wiring ¹</td>
+      <td>Linux · macOS</td>
+      <td>Validates <code>OPENAI_API_KEY</code> against the <strong>live OpenAI API</strong>, boots the real Codex config + PermissionRequest hook wiring, and drives a <strong>real completed <code>codex exec</code> turn</strong> (asserts it echoes a unique token) ¹</td>
     </tr>
     <tr>
       <td><strong>Live Cursor</strong></td>
@@ -396,21 +396,33 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
       <td>Validates the real Cursor config-patch wiring (BYO key) ¹</td>
     </tr>
     <tr>
+      <td><strong>TUI Proofs</strong></td>
+      <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/tui-proofs.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/tui-proofs.yml/badge.svg?branch=main" alt="TUI Proofs" /></a></td>
+      <td>macOS</td>
+      <td>Drives the <strong>real</strong> Claude and Codex TUIs in a live <code>tmux</code> session. <strong>F1</strong>: the Claude terminal <strong>bell</strong> sets tmux's <code>window_bell_flag</code>. <strong>F2</strong>: a <strong>real Codex approval modal</strong> appears, our PermissionRequest notification fires, we approve via send-keys, and the guarded command runs — the full approval decision loop that <code>codex exec</code> structurally can't exercise</td>
+    </tr>
+    <tr>
       <td><strong>Live Toast Linux</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-linux.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-linux.yml/badge.svg?branch=main" alt="Toast Linux" /></a></td>
       <td>Linux</td>
       <td>Fires through the real <code>notify-send</code> backend into a <strong>real <code>dunst</code> daemon</strong>, then reads its history and asserts it captured the exact title + body</td>
     </tr>
     <tr>
+      <td><strong>Live Toast macOS</strong><br/>(delivery capture)</td>
+      <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-macos.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-macos.yml/badge.svg?branch=main" alt="Toast macOS" /></a></td>
+      <td>macOS</td>
+      <td>Fires the <strong>real</strong> <code>osascript</code> backend, then <strong>reads the delivery back out of Notification Center's own SQLite DB</strong> and asserts the exact payload was recorded — so it fails when a real user would have seen nothing (the silent-drop an exit-code check misses). Also runs <code>aan doctor --deep</code> as an independent second check</td>
+    </tr>
+    <tr>
       <td><strong>Live Toast Native</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-native.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-native.yml/badge.svg?branch=main" alt="Toast Native" /></a></td>
-      <td>macOS · Windows</td>
-      <td>Fires the <strong>real</strong> <code>osascript</code> / BurntToast backend and asserts the OS accepted the toast</td>
+      <td>Windows</td>
+      <td>Fires the <strong>real</strong> BurntToast backend and asserts Windows accepted the toast</td>
     </tr>
   </tbody>
 </table>
 
-¹ Codex and Cursor don't round-trip a prompt through their API in CI — `codex exec` needs OpenAI Tier 1+ WebSocket access, and Cursor is a GUI editor. Their hook **delivery** is fully covered by the unit + e2e suites; these jobs verify the live key and the real config wiring.
+¹ The Live Codex lane completes a real `codex exec` turn, but non-interactive exec structurally can't exercise the **approval decision loop** — with no TTY, codex forces `approval: never` + a read-only sandbox, so the PermissionRequest hook never fires. That loop is proven end to end by the **TUI Proofs** lane (F2), which drives the interactive TUI. Cursor is a GUI editor (BYO key), so its lane validates the live key + real config wiring; its hook **delivery** is fully covered by the unit + e2e suites.
 
 ### Run it yourself
 
@@ -422,7 +434,7 @@ npm run toast:demo  # fire real desktop toasts, every event
 
 ### The one thing CI can't prove
 
-Headless CI has no display or login session, so it verifies **delivery** (a real daemon received the payload) and **backend success** (the OS accepted the call) — but it cannot prove a human visually *sees* a banner appear. macOS and Windows also silently suppress toasts under Do Not Disturb / Focus or denied notification permission, returning success either way. To confirm with your own eyes on your own machine, run `npm run toast:demo` and watch them pop.
+CI goes further than "the call returned 0." On **Linux** it reads the payload back out of a real `dunst` daemon; on **macOS** it reads the delivery back out of Notification Center's own database — so a notification that was silently dropped for lack of permission records nothing and turns CI **red** instead of green. What no headless runner can prove is the last millimetre: a human's eyes actually seeing the banner render. Do Not Disturb / Focus still suppress the on-screen banner while the notification is recorded as delivered, so "reached Notification Center" is not the same as "a person saw it." To confirm with your own eyes — and to check your own machine's notification permission — run `npm run toast:demo` and `aan doctor --deep`.
 
 ## Contributing
 
