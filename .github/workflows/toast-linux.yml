@@ -23,8 +23,20 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Install notification daemon + tools
+      - name: Install notification daemon + capture/OCR tooling
         # fonts-dejavu-core: dunst needs a font to initialise its renderer under xvfb.
-        run: sudo apt-get update && sudo apt-get install -y dunst dbus-x11 xvfb libnotify-bin fonts-dejavu-core
-      - name: Fire a real notification and assert dunst captured it
+        # imagemagick (import/convert) + x11-apps (xwd) capture the root window;
+        # tesseract-ocr reads the rendered banner text back off the framebuffer.
+        run: sudo apt-get update && sudo apt-get install -y dunst dbus-x11 xvfb libnotify-bin fonts-dejavu-core imagemagick tesseract-ocr x11-apps
+      - name: Fire a real notification and assert dunst captured it (layer 2 — daemon record)
         run: xvfb-run -a dbus-run-session -- node scripts/live-toast-linux.mjs
+      - name: Prove it renders legible pixels on X (layer 3 — OCR-verified)
+        env:
+          RENDER_OUT: /tmp/linux-render-proof
+        run: xvfb-run -a dbus-run-session -- node scripts/live-toast-linux-render.mjs
+      - name: Upload rendered banner (proof a human can see)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-render-proof
+          path: /tmp/linux-render-proof
