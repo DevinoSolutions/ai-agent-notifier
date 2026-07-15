@@ -15,14 +15,18 @@ import {
 } from '../scripts/lib/ocr-nonce.mjs';
 
 describe('OCR_SAFE_ALPHABET — excludes ambiguous glyphs', () => {
-  it('contains none of the excluded characters 0 O 1 I L 5 S 8 B 2 Z', () => {
+  it('contains none of the excluded characters 0 O 1 I L 5 S 8 B 2 Z 9', () => {
     for (const ch of OCR_EXCLUDED) {
       assert.ok(!OCR_SAFE_ALPHABET.includes(ch), `alphabet must not contain "${ch}"`);
     }
   });
 
-  it('is a subset of A-Z plus 3-9 (uppercase letters and digits only)', () => {
-    assert.match(OCR_SAFE_ALPHABET, /^[A-Z3-9]+$/);
+  it('excludes 9 specifically (tesseract read it as S on a real render)', () => {
+    assert.ok(!OCR_SAFE_ALPHABET.includes('9'), 'alphabet must not contain "9"');
+  });
+
+  it('is drawn only from uppercase letters and the confirmed-safe digits 3 4 6 7', () => {
+    assert.match(OCR_SAFE_ALPHABET, /^[A-Z3467]+$/);
   });
 
   it('has no duplicate characters', () => {

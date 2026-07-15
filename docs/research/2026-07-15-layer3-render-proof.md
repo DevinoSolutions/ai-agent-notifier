@@ -81,8 +81,13 @@ renders identically.
 
 - `linux.sendToast` maps `notification.priority` through `URGENCY_MAP`; it does
   **not** read a `urgency` field. Fire with `priority`.
-- Nonce alphabet excludes `0 O 1 I L 5 S 8 B 2 Z` — the glyph pairs tesseract
-  most often confuses at banner size (`scripts/lib/ocr-nonce.mjs`).
+- Nonce alphabet excludes `0 O 1 I L 5 S 8 B 2 Z` and `9` — the glyph pairs
+  tesseract most often confuses at banner size (`scripts/lib/ocr-nonce.mjs`). The
+  `9` exclusion was earned: on run `29394142374` tesseract read a rendered `9` as
+  `S`, failing the gate. The spike nonce happened to contain no `9`, so the
+  ambiguity only surfaced once the gate ran on a fresh nonce — exactly the
+  measure-flake-before-gating step the design's honesty rail calls for. Digits
+  `3 4 6 7` are each confirmed to OCR correctly on real renders.
 - Match with a normalized `.includes(nonce)`, never full-string equality: OCR
   inserts stray whitespace and the notification icon adds a stray leading char.
 - `dunst` logs a benign `CRITICAL: Cannot acquire org.freedesktop.Notifications`

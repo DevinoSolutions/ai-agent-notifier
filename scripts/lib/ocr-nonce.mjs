@@ -6,12 +6,15 @@
 // match unambiguous.
 
 // OCR-safe alphabet: excludes the glyph pairs tesseract most often confuses at
-// banner sizes — 0/O, 1/I/L, 5/S, 8/B, 2/Z. What remains is what's left of
-// A–Z + 2–9 after removing 0 O 1 I L 5 S 8 B 2 Z.
-export const OCR_SAFE_ALPHABET = 'ACDEFGHJKMNPQRTUVWXY34679';
+// banner sizes — 0/O, 1/I/L, 5/S, 8/B, 2/Z, and 9 (which tesseract read as `S`
+// on a real render, Actions run 29394142374). The remaining digits 3 4 6 7 are
+// each empirically confirmed to OCR correctly at DejaVu Sans Mono 26 (runs
+// 29391999880 and 29394142374). What remains is A–Z + 3 4 6 7 after removing the
+// ambiguous glyphs.
+export const OCR_SAFE_ALPHABET = 'ACDEFGHJKMNPQRTUVWXY3467';
 
 // Characters deliberately kept OUT of the alphabet, for the no-ambiguity test.
-export const OCR_EXCLUDED = '0O1IL5S8B2Z';
+export const OCR_EXCLUDED = '0O1IL5S8B2Z9';
 
 // A random nonce drawn only from the OCR-safe alphabet. Default length 10 keeps
 // it short enough to fit one banner line in a large mono font, long enough that
