@@ -120,6 +120,39 @@ function validateUserConfig(user) {
     }
   }
 
+  // `sources` overrides the per-tool label/icon shown on notifications. It nests
+  // one level (sources.<tool>.{label,icon}) like `events`, so it needs its own
+  // pass rather than a flat checkBlock. A control char in a label — especially a
+  // newline — would corrupt the ntfy Title/Icon HTTP headers at send time, so a
+  // label/icon that isn't a single clean line is rejected (defaults win).
+  if (user.sources !== undefined) {
+    if (typeof user.sources !== 'object' || user.sources === null || Array.isArray(user.sources)) {
+      issues.push('"sources" must be an object');
+      delete user.sources;
+    } else {
+      for (const [tool, spec] of Object.entries(user.sources)) {
+        if (typeof spec !== 'object' || spec === null || Array.isArray(spec)) {
+          issues.push(`"sources.${tool}" must be an object`);
+          delete user.sources[tool];
+          continue;
+        }
+        for (const [key, val] of Object.entries(spec)) {
+          if (key !== 'label' && key !== 'icon') {
+            issues.push(`unknown key "sources.${tool}.${key}"`);
+            continue;
+          }
+          if (typeof val !== 'string') {
+            issues.push(`"sources.${tool}.${key}" must be a string, got ${typeof val}`);
+            delete spec[key];
+          } else if ([...val].some((ch) => ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f)) {
+            issues.push(`"sources.${tool}.${key}" must be a single-line string (no control characters)`);
+            delete spec[key];
+          }
+        }
+      }
+    }
+  }
+
   const knownTop = ['ntfy', 'toast', 'terminalBell', 'webhook', 'sentry', 'events', 'sources'];
   for (const key of Object.keys(user)) {
     if (!knownTop.includes(key)) issues.push(`unknown key "${key}"`);

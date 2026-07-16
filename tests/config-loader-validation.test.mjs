@@ -116,6 +116,46 @@ describe('loadConfigResult', () => {
     assert.equal(config.webhook.format, 'telegram', 'format kept so the send-time hint fires');
   });
 
+  it('sources: a wrong-typed label is reported AND dropped so the default label wins', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      sources: { claude: { label: 42, icon: 'https://x/i.png' } },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem.type, 'validate');
+    assert.match(problem.message, /"sources\.claude\.label" must be a string, got number/);
+    assert.equal(config.sources.claude.label, 'Claude Code', 'default label kept');
+    assert.equal(config.sources.claude.icon, 'https://x/i.png', 'good sibling value kept');
+  });
+
+  it('sources: a label with a control char (newline) is rejected — it would corrupt the ntfy Title header', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      sources: { codex: { label: 'Codex\nInjected: header' } },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem.type, 'validate');
+    assert.match(problem.message, /"sources\.codex\.label" must be a single-line string/);
+    assert.equal(config.sources.codex.label, 'Codex', 'default label kept after rejecting the poisoned one');
+  });
+
+  it('sources: an unknown per-tool key is reported but kept', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      sources: { claude: { label: 'Claude', color: 'purple' } },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem.type, 'validate');
+    assert.match(problem.message, /unknown key "sources\.claude\.color"/);
+    assert.equal(config.sources.claude.color, 'purple', 'unknown key kept');
+  });
+
+  it('sources: a clean custom label/icon produces no problem', () => {
+    fs.writeFileSync(configPath, JSON.stringify({
+      sources: { claude: { label: 'My Claude', icon: 'https://x/i.png' } },
+    }), 'utf8');
+    const { config, problem } = loadConfigResult(configPath);
+    assert.equal(problem, null);
+    assert.equal(config.sources.claude.label, 'My Claude');
+  });
+
   it('a fully valid user config produces no problem', () => {
     fs.writeFileSync(configPath, JSON.stringify({
       ntfy: { enabled: true, topic: 'aan-test' },

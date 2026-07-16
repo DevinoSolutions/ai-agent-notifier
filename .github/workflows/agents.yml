@@ -2,7 +2,10 @@ name: Agents
 
 on:
   push:
+    branches: [main]
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
   pull_request:
+    paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
 
 concurrency:
   group: '${{ github.workflow }}-${{ github.ref }}'

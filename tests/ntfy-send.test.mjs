@@ -77,4 +77,11 @@ describe('sendNtfy (real local HTTP server, no mocking)', () => {
     const ok = await sendNtfy({ server: 'http://127.0.0.1:1', topic: 't' }, { title: 'T', message: 'm' });
     assert.equal(ok, false);
   });
+
+  it('returns false (never throws) when the server is a bare hostname with no scheme', async () => {
+    // A "ntfy.sh" typo (no https://) makes `new URL` throw; the resolve-false
+    // contract must hold so `aan test ntfy` reports cleanly instead of crashing.
+    const ok = await sendNtfy({ server: 'ntfy.sh', topic: 't' }, { title: 'T', message: 'm' });
+    assert.equal(ok, false);
+  });
 });

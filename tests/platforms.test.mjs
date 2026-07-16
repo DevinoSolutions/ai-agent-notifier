@@ -8,7 +8,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import { esc } from '../src/platforms/macos.mjs';
-import { URGENCY_MAP } from '../src/platforms/linux.mjs';
+import { URGENCY_MAP, buildNotifySendArgs } from '../src/platforms/linux.mjs';
 
 const platform = os.platform();
 
@@ -39,6 +39,28 @@ describe('linux URGENCY_MAP — ntfy priority → notify-send urgency', () => {
     assert.equal(URGENCY_MAP.high, 'normal');
     assert.equal(URGENCY_MAP.default, 'low');
     assert.equal(URGENCY_MAP.low, 'low');
+  });
+});
+
+describe('linux buildNotifySendArgs — options precede the `--` end-of-options guard', () => {
+  it('puts every option before `--` and title/message after it', () => {
+    const args = buildNotifySendArgs({ title: 'Claude Code', message: 'app: Task complete', priority: 'urgent' }, '/i.png');
+    assert.deepEqual(args, ['--urgency', 'critical', '--icon', '/i.png', '--', 'Claude Code', 'app: Task complete']);
+  });
+
+  it('keeps a leading-dash message AFTER `--` so notify-send never parses it as an option', () => {
+    // Rich content can start with a dash ("- Fixed the bug"); without the guard
+    // GOption would reject it as an unknown option and the toast would silently fail.
+    const args = buildNotifySendArgs({ title: 'T', message: '- Fixed the bug', priority: 'default' }, '');
+    const sep = args.indexOf('--');
+    assert.ok(sep !== -1, 'args must contain the `--` guard');
+    assert.equal(args[sep + 2], '- Fixed the bug');
+    assert.ok(args.indexOf('- Fixed the bug') > sep, 'the dash-leading message must come after `--`');
+  });
+
+  it('omits --icon entirely when no icon path is given', () => {
+    const args = buildNotifySendArgs({ title: 'T', message: 'm', priority: 'low' }, '');
+    assert.deepEqual(args, ['--urgency', 'low', '--', 'T', 'm']);
   });
 });
 

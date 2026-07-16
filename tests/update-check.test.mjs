@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { resolveUpdate, UPDATE_TTL_MS } from '../cli/update-check.mjs';
+import { resolveUpdate, UPDATE_TTL_MS, isNewer } from '../cli/update-check.mjs';
 
 const tmpDir = path.join(os.tmpdir(), 'update-check-test-' + Date.now());
 const cachePath = () => path.join(tmpDir, `.update-check-${Math.random().toString(36).slice(2)}.json`);
@@ -50,5 +50,21 @@ describe('resolveUpdate caching', () => {
     const cached = JSON.parse(fs.readFileSync(cp, 'utf8'));
     assert.equal(cached.checkedAt, 5000);
     assert.equal(cached.latest, null);
+  });
+});
+
+describe('isNewer — semver "should we nag?" gate', () => {
+  it('true only when strictly newer, field-by-field numeric (1.10.0 > 1.9.0)', () => {
+    assert.equal(isNewer('1.10.0', '1.9.0'), true);
+    assert.equal(isNewer('2.0.0', '1.9.9'), true);
+    assert.equal(isNewer('1.2.2', '1.2.1'), true);
+  });
+  it('false when equal or OLDER — never nags a user to downgrade (repo 1.2.1 vs npm 1.0.6)', () => {
+    assert.equal(isNewer('1.2.1', '1.2.1'), false);
+    assert.equal(isNewer('1.0.6', '1.2.1'), false);
+    assert.equal(isNewer('1.9.0', '1.10.0'), false);
+  });
+  it('unparseable input is treated as not-newer (stays quiet)', () => {
+    assert.equal(isNewer('garbage', '1.2.1'), false);
   });
 });

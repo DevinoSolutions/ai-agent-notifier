@@ -100,7 +100,9 @@ function queryRecordHex(dbPath, limit = 20) {
   const sql = `select hex(data) from record order by rowid desc limit ${limit};`;
   const rowsOf = (out) => out.split('\n').map((l) => l.trim()).filter(Boolean);
   try {
-    const out = execFileSync('sqlite3', [`file:${dbPath}?mode=ro`, sql], { encoding: 'utf8' });
+    // Percent-encode the path (encodeURI keeps the `/` separators) so a space in
+    // the home dir — /Users/Jane Doe/… — doesn't corrupt the sqlite file: URI.
+    const out = execFileSync('sqlite3', [`file:${encodeURI(dbPath)}?mode=ro`, sql], { encoding: 'utf8' });
     return { rows: rowsOf(out), error: null };
   } catch (liveErr) {
     // Fallback: snapshot the db and its WAL sidecars to a temp dir and read the
@@ -112,7 +114,7 @@ function queryRecordHex(dbPath, limit = 20) {
       for (const suffix of ['', '-wal', '-shm']) {
         if (fs.existsSync(dbPath + suffix)) fs.copyFileSync(dbPath + suffix, copy + suffix);
       }
-      const out = execFileSync('sqlite3', [`file:${copy}?mode=ro`, sql], { encoding: 'utf8' });
+      const out = execFileSync('sqlite3', [`file:${encodeURI(copy)}?mode=ro`, sql], { encoding: 'utf8' });
       return { rows: rowsOf(out), error: null };
     } catch (copyErr) {
       const msg = [liveErr, copyErr].map((e) => String((e && (e.stderr || e.message)) || '')).join(' ');

@@ -6,7 +6,18 @@ import { resolveToastBackend } from '../src/platforms/index.mjs';
 import { sendBell } from '../src/bell.mjs';
 import { c, spinner } from './ui.mjs';
 
+// The channels `test` understands. Omitting the arg runs all applicable ones;
+// `both` is the documented toast+ntfy shorthand. An unrecognised value used to
+// print the header and exit 0 doing nothing, which reads as a silent success.
+export const KNOWN_CHANNELS = ['toast', 'ntfy', 'webhook', 'bell', 'both'];
+
 export async function run(channel) {
+  if (channel && !KNOWN_CHANNELS.includes(channel)) {
+    console.error(`  ${c.error('Unknown channel:')} ${channel} ${c.muted(`(valid: ${KNOWN_CHANNELS.join(', ')})`)}`);
+    process.exitCode = 1;
+    return;
+  }
+
   const { config, problem } = loadConfigResult();
   if (problem) {
     console.error(`  ${c.error('Config error:')} ${problem.message}`);

@@ -198,8 +198,9 @@ async function main() {
   // Write the hook response — normally '{}\n' (some tools, e.g. Cursor, expect
   // stdout output and may retry if they get nothing); on the successful claude
   // bell path it carries the terminalSequence set above.
-  process.stdout.write(responseBody);
-  process.exit(0);
+  // Exit only after the write drains: on a back-pressured stdout an immediate
+  // process.exit() can drop the hook response (e.g. the claude bell sequence).
+  process.stdout.write(responseBody, () => process.exit(0));
 }
 
 // Only run main when invoked directly as a hook (node src/notify.mjs ...),

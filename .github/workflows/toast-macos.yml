@@ -5,6 +5,7 @@ name: Toast macOS
 # an exit-code check, this fails when a real user would have seen nothing.
 on:
   push:
+    branches: [main]
     paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
   pull_request:
     paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
