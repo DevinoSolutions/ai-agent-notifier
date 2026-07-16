@@ -46,10 +46,17 @@ async function main() {
 
   // HARD: the AfterAgent hook must deliver an ntfy push. If the hook does not
   // fire in this mode, fix how we drive the agent — do not weaken this check.
+  //
+  // Body assertion is HARD: gemini has no rich-content path at all (rich content
+  // is claude-only — src/transcript.mjs), so an AfterAgent (task_complete) push
+  // body is always the generic "<project>: Task complete". Observed identical in
+  // every sampled macOS run (body="…: Task complete"), so gating on it is safe.
   await pollForPush({
     topic,
     match: (m) => m.title === 'Gemini',
+    assertBody: (m) => typeof m.message === 'string' && m.message.endsWith('Task complete'),
     failMessage: 'FAIL: AfterAgent hook did not deliver an ntfy push within the poll window',
+    bodyFailMessage: 'FAIL: ntfy body was not the expected task_complete message ("…: Task complete")',
     passMessage: 'PASS (hard): AfterAgent hook delivered an ntfy push',
   });
 

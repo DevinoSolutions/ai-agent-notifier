@@ -2,8 +2,10 @@
 // returns an array of { id, channel, status, detail, hint }. Each check is
 // best-effort and never throws; runChecks aggregates them.
 import os from 'node:os';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { notificationAuthState, verifyDelivery, ncDbPath } from '../src/platforms/macos-delivery.mjs';
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Terminals known to swallow OSC/BEL sequences (from the demand evidence).
 const OSC_SWALLOWERS = { vscode: 'VS Code', windsurf: 'Windsurf' };
@@ -156,6 +158,94 @@ async function toastAuthCheck(deep, strict) {
   return { id: 'toast-auth', channel: 'toast', status: strict ? 'fail' : 'warn', detail: `toast sent but no delivery record (${res.reason})`, hint: 'notifications may be disabled for this app in System Settings → Notifications' };
 }
 
+// Default dunstctl runner: returns { status, stdout } and does NOT throw on a
+// non-zero exit (unlike execFileSync), so a missing/idle daemon degrades to a
+// readable status instead of an exception. Injected in tests.
+function defaultDunstctl(args) {
+  const r = spawnSync('dunstctl', args, { encoding: 'utf8' });
+  return { status: r.status, stdout: r.stdout || '', stderr: r.stderr || '' };
+}
+
+// Move any displayed notifications into history (dunst records a notification
+// only once it closes), then scan the JSON history for `marker`. Polls a few
+// times because the daemon commit is not synchronous with notify-send's exit.
+async function dunstHistoryHasMarker(marker, { dunstctl, tries, pollMs, sleepFn }) {
+  let sawHistory = false;
+  for (let i = 0; i < tries; i++) {
+    dunstctl(['close-all']);
+    const res = dunstctl(['history']);
+    if (res.status === 0) {
+      sawHistory = true;
+      let parsed;
+      try { parsed = JSON.parse(res.stdout); } catch { parsed = null; }
+      const items = parsed?.data?.[0] || [];
+      for (const n of items) {
+        const body = n?.body?.data || '';
+        const summary = n?.summary?.data || '';
+        if (body.includes(marker) || summary.includes(marker)) return { found: true };
+      }
+    }
+    if (i < tries - 1) await sleepFn(pollMs);
+  }
+  return { found: false, sawHistory };
+}
+
+// Linux --deep probe: fire a REAL toast through the production backend
+// (src/platforms/linux.mjs → notify-send, which keys urgency off
+// notification.priority) with a nonce, then read it back from the dunst daemon's
+// history to prove real delivery — the Linux analogue of the macOS NC read-back.
+// When dunstctl is absent (GNOME/KDE/etc.) there is no history API to read, so we
+// honestly report "dispatched but unverified" rather than assuming a pass. The
+// fired toast is user-visible, hence the honest title and low urgency. Deps are
+// injected so the whole probe is unit-testable off-Linux.
+export async function linuxDeepToastCheck({
+  hasBin = has,
+  sendToast,
+  dunstctl = defaultDunstctl,
+  tries = 12,
+  pollMs = 500,
+  sleepFn = sleep,
+} = {}) {
+  const marker = `aan-doctor-${process.pid}-${Date.now().toString(36)}`;
+  const notification = {
+    source: 'claude',
+    title: 'ai-agent-notifier doctor check',
+    message: `test notification ${marker}`,
+    priority: 'low', // visible to the user — keep it low-urgency
+  };
+  const delivered = await sendToast(notification);
+  if (!delivered) {
+    return {
+      id: 'toast-deep', channel: 'toast', status: 'warn',
+      detail: 'sent a test notification but notify-send did not exit 0',
+      hint: 'install libnotify-bin and a running notification daemon',
+    };
+  }
+  if (!hasBin('dunstctl')) {
+    return {
+      id: 'toast-deep', channel: 'toast', status: 'info',
+      detail: 'sent a test notification via notify-send; this daemon exposes no history read-back (dunstctl not found), so delivery is dispatched-but-unverified',
+      hint: 'delivery read-back is only available under the dunst daemon',
+    };
+  }
+  const r = await dunstHistoryHasMarker(marker, { dunstctl, tries, pollMs, sleepFn });
+  if (r.found) {
+    return { id: 'toast-deep', channel: 'toast', status: 'ok', detail: 'sent a test notification and verified it in the dunst daemon history' };
+  }
+  if (!r.sawHistory) {
+    return {
+      id: 'toast-deep', channel: 'toast', status: 'warn',
+      detail: 'dunstctl present but its history could not be read (daemon not running on this session bus?)',
+      hint: 'start the dunst daemon, then re-run `ai-agent-notifier doctor --deep`',
+    };
+  }
+  return {
+    id: 'toast-deep', channel: 'toast', status: 'fail',
+    detail: 'sent a test notification via notify-send but dunst never recorded it',
+    hint: 'the notification daemon did not receive the payload',
+  };
+}
+
 // Run all platform-appropriate checks. `strict` (AAN_DOCTOR_STRICT=1) turns
 // deep-mode warns into fails so CI can gate on the product diagnostic.
 export async function runChecks({ config, configProblem = null, deep = false, strict = false }) {
@@ -170,10 +260,19 @@ export async function runChecks({ config, configProblem = null, deep = false, st
   if (p === 'darwin') {
     try { results.push(await toastAuthCheck(deep, strict)); }
     catch (err) { results.push({ id: 'toast-auth', channel: 'toast', status: 'warn', detail: `auth check errored: ${err.message}` }); }
+  } else if (deep && p === 'linux') {
+    // Linux has a real --deep probe: fire through notify-send and read the toast
+    // back from the dunst daemon's history (TC-27). Falls back to an honest
+    // "dispatched but unverified" line on non-dunst daemons.
+    try {
+      const { sendToast } = await import('../src/platforms/linux.mjs');
+      results.push(await linuxDeepToastCheck({ sendToast }));
+    } catch (err) {
+      results.push({ id: 'toast-deep', channel: 'toast', status: 'warn', detail: `deep probe errored: ${err.message}` });
+    }
   } else if (deep) {
-    // --deep's only real probe is the macOS NC read-back; on linux/win32 it would
-    // otherwise silently no-op, so say so explicitly (Linux daemon read-back is a
-    // deferred follow-up — see docs/audits/2026-07-16-final-pass.json, TC-27).
+    // win32 (and any other non-darwin, non-linux platform): no deep probe exists;
+    // it would otherwise silently no-op, so say so explicitly.
     results.push({ id: 'deep-probe', channel: 'toast', status: 'info', detail: `deep verification not available on ${p} (static checks only)` });
   }
   results.push(bellCheck(), ntfyCheck(config), webhookCheck(config), configCheck(config, configProblem));
