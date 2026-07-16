@@ -337,7 +337,7 @@ Removes all managed hooks from every tool's config. Original configs are backed 
 
 ## Testing
 
-Everything below is verified against the **real thing** — no mocks, no stubs, no fakes. Real ntfy.sh push delivery, a real Linux notification daemon receiving the exact payload, the real agent CLIs installed from npm and driven end to end, and the real native OS toast backends firing — then **read back out of the OS's own notification store** (`dunst` on Linux, Notification Center's database on macOS) to prove the payload actually landed, not just that the call returned 0. Every job is **required** and **hard-fails**: a broken key, a renamed secret, or a hook that doesn't deliver turns CI red instead of skipping silently.
+Everything below is verified against the **real thing** — no mocks, no stubs, no fakes. Real ntfy.sh push delivery, a real Linux notification daemon receiving the exact payload, the real agent CLIs installed from npm and driven end to end, and the real native OS toast backends firing — then **read back out of the OS's own notification store** (`dunst` on Linux, Notification Center's database on macOS, `wpndatabase.db` on Windows) to prove the payload actually landed, not just that the call returned 0. Every job is **required** and **hard-fails**: a broken key, a renamed secret, or a hook that doesn't deliver turns CI red instead of skipping silently.
 
 ### What CI verifies on every run — all real, all platforms
 
@@ -417,7 +417,7 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
       <td><strong>Live Toast Native</strong></td>
       <td align="center"><a href="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-native.yml"><img src="https://github.com/DevinoSolutions/ai-agent-notifier/actions/workflows/toast-native.yml/badge.svg?branch=main" alt="Toast Native" /></a></td>
       <td>Windows</td>
-      <td>Fires the <strong>real</strong> BurntToast backend and asserts Windows accepted the toast</td>
+      <td>Fires the <strong>real</strong> BurntToast backend, then <strong>reads the notification back out of the Windows notification platform's own store</strong> (<code>wpndatabase.db</code>) and asserts the exact nonce was recorded in the toast's title <strong>and</strong> body — so it fails when a real user would have seen nothing (the silent-drop an exit-code check misses) ³</td>
     </tr>
   </tbody>
 </table>
@@ -425,6 +425,8 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
 ¹ The Live Codex lane completes a real `codex exec` turn, but non-interactive exec structurally can't exercise the **approval decision loop** — with no TTY, codex forces `approval: never` + a read-only sandbox, so the PermissionRequest hook never fires. That loop is proven end to end by the **TUI Proofs** lane (F2), which drives the interactive TUI. Cursor is a GUI editor (BYO key), so its lane validates the live key + real config wiring; its hook **delivery** is fully covered by the unit + e2e suites.
 
 ² The on-screen render proof draws the banner with **our** tuned `dunstrc` (large mono font, high contrast) on a **virtual** X display (Xvfb), so it proves the product path renders legible, machine-readable pixels — not that every user's desktop theme renders identically. macOS has no equivalent lane: on the hosted runner a real notification records in Notification Center but never presents a banner, and the accessibility/screen-capture routes are walled off by TCC, so **layer 2 (recorded in Notification Center) is the honest macOS CI ceiling** — on-screen rendering there is a real-machine concern checked by `aan doctor --deep`. See [`docs/research/2026-07-15-layer3-render-proof.md`](docs/research/2026-07-15-layer3-render-proof.md).
+
+³ Like macOS, Windows is proven to **layer 2** in CI: the hosted `windows-latest` runner is a headless Session-0 environment with no interactive desktop, so the toast is **recorded** by the Windows notification platform but no banner is presented on a screen. The gate reads the record back out of `wpndatabase.db` (WAL-aware — a freshly fired toast lives in the DB's write-ahead log, so an `immutable=1` open would miss it and falsely report absence) and asserts the exact nonce in the title and body. On-screen rendering is a real-machine concern checked by `aan doctor` (PowerShell + BurntToast + execution-policy state). See [`docs/research/2026-07-15-layer3-render-proof.md`](docs/research/2026-07-15-layer3-render-proof.md).
 
 ### Run it yourself
 
@@ -436,7 +438,7 @@ npm run toast:demo  # fire real desktop toasts, every event
 
 ### The one thing CI can't prove
 
-CI goes further than "the call returned 0." On **Linux** it reads the payload back out of a real `dunst` daemon **and** captures the X display to OCR the banner's text off the screen — pixels, not just a database row. On **macOS** it reads the delivery back out of Notification Center's own database — so a notification that was silently dropped for lack of permission records nothing and turns CI **red** instead of green. What no headless runner can prove is the last millimetre: a human's eyes actually seeing the banner. On macOS the on-screen banner can't be captured in CI at all (the hosted runner records the notification but never presents it, and TCC walls off the accessibility/screen-capture routes — layer 2 is the ceiling ²), and everywhere Do Not Disturb / Focus can suppress the on-screen banner while the notification is still recorded as delivered. So "reached the notification store" is not always "a person saw it." To confirm with your own eyes — and to check your own machine's notification permission — run `npm run toast:demo` and `aan doctor --deep`.
+CI goes further than "the call returned 0." On **Linux** it reads the payload back out of a real `dunst` daemon **and** captures the X display to OCR the banner's text off the screen — pixels, not just a database row. On **macOS** it reads the delivery back out of Notification Center's own database, and on **Windows** out of the notification platform's `wpndatabase.db` — so a notification that was silently dropped for lack of permission records nothing and turns CI **red** instead of green. What no headless runner can prove is the last millimetre: a human's eyes actually seeing the banner. On macOS and Windows the on-screen banner can't be captured in CI at all (the hosted runner records the notification but never presents it — layer 2 is the ceiling ² ³), and everywhere Do Not Disturb / Focus can suppress the on-screen banner while the notification is still recorded as delivered. So "reached the notification store" is not always "a person saw it." To confirm with your own eyes — and to check your own machine's notification permission — run `npm run toast:demo` and `aan doctor --deep`.
 
 ## Contributing
 
