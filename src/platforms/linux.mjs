@@ -16,6 +16,21 @@ export const URGENCY_MAP = {
   min: 'low',
 };
 
+// notify-send parses positionals with GLib GOption: any argument before the
+// `--` end-of-options guard that begins with `-` is taken as an (unknown) option
+// and the call fails. The message body is agent-controlled — rich content can
+// start with a dash ("- Fixed the bug") — so options MUST come first, then `--`,
+// then title/message, or a dash-leading toast silently never fires.
+export function buildNotifySendArgs(notification, iconPath) {
+  return [
+    '--urgency', URGENCY_MAP[notification.priority] || 'low',
+    ...(iconPath ? ['--icon', iconPath] : []),
+    '--',
+    notification.title,
+    notification.message,
+  ];
+}
+
 export function sendToast(notification) {
   return new Promise((resolve) => {
     // Per-source icon: assets/icons/<source>.png, fallback to legacy icon.png
@@ -24,15 +39,7 @@ export function sendToast(notification) {
     if (!iconPath || !fs.existsSync(iconPath)) {
       iconPath = path.join(getConfigDir(), 'icon.png');
     }
-    const args = [
-      notification.title,
-      notification.message,
-      '--urgency', URGENCY_MAP[notification.priority] || 'low',
-    ];
-
-    if (fs.existsSync(iconPath)) {
-      args.push('--icon', iconPath);
-    }
+    const args = buildNotifySendArgs(notification, fs.existsSync(iconPath) ? iconPath : '');
 
     execFile('notify-send', args, { timeout: 5000 }, (err, stdout, stderr) => {
       if (err) logHookError('toast:linux', err, { stderr: (stderr || '').slice(0, 400) });

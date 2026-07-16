@@ -1,0 +1,246 @@
+{
+  "pass": 3,
+  "date": "2026-07-16",
+  "auditor": "Claude Fable 5 + Opus remediation subagent, two-lens audit (runtime/cli + docs/ci/release)",
+  "scope": "Final audit-and-improvement pass over ai-agent-notifier: two verified runtime bugs, honesty of the user-facing README, real install bootstrappers, doctor --deep candor, CI double-run economics, small CLI/runtime correctness fixes, and the missing npm release pipeline. Reinstates the docs/audits/ convention that lapsed while demand passes 3-5 (PRs #5-#8) shipped without records.",
+  "verification_summary": {
+    "checks_passed": [
+      "npm test — full unit + integration suite green locally on Windows (308 tests, 300 pass, 8 platform-skipped, 0 fail), including all new regression tests",
+      "linux buildNotifySendArgs: options precede the `--` guard; a leading-dash message lands after `--` (tests/platforms.test.mjs)",
+      "sendNtfy resolves false (never throws) on a scheme-less server typo (tests/ntfy-send.test.mjs)",
+      "config-loader rejects a control-char (newline) source label and non-string label/icon, keeps clean custom values (tests/config-loader-validation.test.mjs)",
+      "cli test <unknown-channel> exits 1 naming the valid set (tests/cli-test.test.mjs)",
+      "doctor --deep on a non-darwin platform emits an explicit 'not available' info line (tests/doctor.test.mjs)",
+      "isNewer semver gate: true only when strictly newer; 1.0.6 vs local 1.2.1 stays quiet (tests/update-check.test.mjs)",
+      "npm version 1.2.1 --no-git-tag-version synced package.json + plugin.json + marketplace.json to 1.2.1 with no tag created"
+    ],
+    "checks_failed": [],
+    "blocked": [
+      "npm publish of v1.2.1 — requires the maintainer to add the NPM_TOKEN repo secret and push a v1.2.1 tag; CI must never publish or tag itself (release.yml is the rail, deliberately un-triggered)",
+      "Real WSL toast-to-Windows-host delivery — not provable on a hosted GitHub runner (cannot host a WSL guest and an interactive Windows desktop together); documented as a proof boundary instead",
+      "Linux doctor --deep daemon read-back — deferred follow-up; needs a notification-daemon history probe not built this pass"
+    ]
+  },
+  "findings": [
+    {
+      "id": "RT-16",
+      "title": "Linux notify-send called with positionals before the `--` end-of-options guard",
+      "severity": "medium",
+      "area": "toast-delivery",
+      "evidence": "src/platforms/linux.mjs:27-31 — args were [title, message, '--urgency', level] with no `--`. GLib GOption parses any pre-`--` arg starting with '-' as an unknown option, so a rich-content message like '- Fixed the bug' makes notify-send exit non-zero and the toast silently never fires.",
+      "why_it_matters": "Claude Code rich content puts the assistant's own text into the body; a dash-leading line is plausible and would silently drop the notification.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "Extracted exported buildNotifySendArgs(notification, iconPath): ['--urgency', level, ...(icon?['--icon',icon]:[]), '--', title, message] — all options first, then `--`, then positionals. URGENCY_MAP/priority behavior unchanged.",
+      "verification": "tests/platforms.test.mjs asserts arg order and that a leading-dash message lands after `--`."
+    },
+    {
+      "id": "RT-17",
+      "title": "sendNtfy `new URL()` unguarded — violates the module's resolve-false/never-throw contract",
+      "severity": "medium",
+      "area": "error-visibility",
+      "evidence": "src/ntfy.mjs:31 — `const parsed = new URL(url)` was unguarded, unlike webhook.mjs:63-70 and sentry.mjs:75. A server typo with no scheme ('ntfy.sh') throws 'Invalid URL', crashing `aan test ntfy` with a raw stack instead of a clean false.",
+      "why_it_matters": "The channel modules promise never to throw so a bad config can't take down the hook or the CLI; ntfy was the one that could.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "Wrapped `new URL(url)` in try/catch → logHookError + resolve(false) naming the bad server (not the topic). Also wrapped transport.request setup in try/catch to mirror webhook.mjs's guard against synchronous throws on non-http(s) protocols/invalid headers.",
+      "verification": "tests/ntfy-send.test.mjs: a scheme-less server yields false with no throw."
+    },
+    {
+      "id": "MD-16",
+      "title": "README standalone install one-liners point at nonexistent files",
+      "severity": "high",
+      "area": "install-honesty",
+      "evidence": "README.md:134 (setup/install.ps1) and :139 (setup/install.sh) were advertised as curl|iex bootstrappers, but setup/ contained only patch-config.mjs — both URLs 404'd.",
+      "why_it_matters": "A trust-sensitive install path people are told to pipe into a shell must exist and work; a 404 (or worse, a silent no-op) is a broken first impression.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "Created setup/install.sh (set -euo pipefail, fails loudly) and setup/install.ps1 ($ErrorActionPreference='Stop'): both verify Node>=18 + npm with an actionable per-OS hint, then exec `npx --yes ai-agent-notifier@latest setup` forwarding args. setup/ is already in package.json files[].",
+      "verification": "Files created and readable; scripts are thin/no-network until the npx handoff. Piped-shell end-to-end run is a maintainer step after publish."
+    },
+    {
+      "id": "MD-17",
+      "title": "README claims a macOS terminal-notifier fallback that does not exist in code",
+      "severity": "medium",
+      "area": "test-honesty",
+      "evidence": "README.md:307 — 'Falls back to terminal-notifier for richer features if available'. grep for terminal-notifier across src/ and cli/ returns nothing; macOS uses osascript only.",
+      "why_it_matters": "The repo's extreme-honesty culture requires README claims to match code exactly.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "Deleted the claim (did not implement terminal-notifier)."
+    },
+    {
+      "id": "MD-18",
+      "title": "WSL over-claim: real cross-boundary toast delivery is asserted but never proven",
+      "severity": "low",
+      "area": "test-honesty",
+      "evidence": "README.md:51 ('real Windows toast notifications from inside WSL') and :314-319. Only detection + interop invocation are tested (tests/platforms-wsl.test.mjs, fully deps-injected); no CI proves a toast reaches the Windows host.",
+      "why_it_matters": "Matches how the repo already scopes Codex exec vs the TUI approval loop — claims must stop at what CI proves.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "Softened the feature bullet and Platform Details WSL section to 'routed to Windows over PowerShell interop' and added an explicit proof-boundary note in both the WSL section and the Testing footnotes explaining WSL has no table row on purpose."
+    },
+    {
+      "id": "CL-19",
+      "title": "doctor --deep silently no-ops on linux/win32",
+      "severity": "low",
+      "area": "cli-candor",
+      "evidence": "cli/doctor-checks.mjs — the `deep` flag is only consumed by the darwin toastAuthCheck; on other platforms it was accepted and ignored with no output.",
+      "why_it_matters": "A flag that silently does nothing misleads the user into thinking a deep verification ran.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "runChecks now pushes an explicit info-status row 'deep verification not available on <platform> (static checks only)' when --deep is passed on a platform with no deep probe; doctor.mjs ICON map gained an 'info' glyph; --json stays machine-parseable (new id 'deep-probe').",
+      "verification": "tests/doctor.test.mjs asserts the deep-probe info row on non-darwin."
+    },
+    {
+      "id": "CL-20",
+      "title": "`aan test <unknown-channel>` prints the header and exits 0 doing nothing",
+      "severity": "low",
+      "area": "cli-correctness",
+      "evidence": "cli/test.mjs — an unrecognised channel matched none of the do* gates, so the command printed the header and exited 0, reading as a silent success.",
+      "why_it_matters": "A typo'd channel should fail loudly, not look like it worked.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "Added exported KNOWN_CHANNELS = [toast, ntfy, webhook, bell, both]; an unknown channel prints 'Unknown channel: X (valid: ...)' to stderr and exits 1. NOTE: the task-suggested valid set listed 'all', but the code + README:147 use 'both' (no-arg = every channel); recorded the honest set that matches the code.",
+      "verification": "tests/cli-test.test.mjs asserts exit 1 + message; KNOWN_CHANNELS matches the documented set."
+    },
+    {
+      "id": "RT-18",
+      "title": "Hook stdout.write followed by immediate process.exit can drop the response",
+      "severity": "low",
+      "area": "runtime-correctness",
+      "evidence": "src/notify.mjs:201-202 — process.stdout.write(responseBody); process.exit(0). On a back-pressured stdout the buffered write can be lost before exit (notably the claude terminalSequence bell payload).",
+      "confidence": "medium",
+      "status": "fixed",
+      "resolution": "process.stdout.write(responseBody, () => process.exit(0)) — exit only after the write drains."
+    },
+    {
+      "id": "RT-19",
+      "title": "config `sources` block had no schema check — label/icon unvalidated",
+      "severity": "medium",
+      "area": "config-schema",
+      "evidence": "src/config-loader.mjs — 'sources' was in knownTop but had no checkBlock; a newline in sources.<tool>.label flows to notification.title and later corrupts the ntfy Title HTTP header at send time.",
+      "why_it_matters": "A control char in label/icon is a header-injection / send-failure vector; every other block is validated.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "Added a nested sources validator (like events): each sources.<tool> must be an object; label/icon must be strings with no control chars (charCodeAt < 0x20 or === 0x7f), wrong types deleted+reported so defaults win; unknown per-tool keys reported but kept.",
+      "verification": "tests/config-loader-validation.test.mjs: non-string label reverted, newline label rejected, unknown key kept, clean custom label passes."
+    },
+    {
+      "id": "RT-20",
+      "title": "macOS NC DB path interpolated into a sqlite file: URI without percent-encoding",
+      "severity": "low",
+      "area": "runtime-correctness",
+      "evidence": "src/platforms/macos-delivery.mjs:103,115 — `file:${dbPath}?mode=ro` / `file:${copy}?mode=ro`; a space in the home dir (/Users/Jane Doe/...) corrupts the URI.",
+      "confidence": "medium",
+      "status": "fixed",
+      "resolution": "Wrapped both interpolations in encodeURI() (keeps the `/` separators, encodes spaces)."
+    },
+    {
+      "id": "CL-21",
+      "title": "update-check compares versions with string `!==`, not a semver newer-than",
+      "severity": "medium",
+      "area": "cli-correctness",
+      "evidence": "cli/update-check.mjs:63 — `latest !== pkg.version`. With npm latest at 1.0.6 and the repo at 1.2.1, this reports 1.0.6 as an available 'update', nagging users to downgrade.",
+      "why_it_matters": "Directly wrong right now given the npm/repo version gap this pass also addresses.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "Added exported isNewer(a,b): field-by-field numeric semver compare (1.10.0 > 1.9.0), pre-release/build ignored, unparseable treated as not-newer; fetchLatest now resolves only when strictly newer. ~11 lines.",
+      "verification": "tests/update-check.test.mjs: strictly-newer true, equal/older false (1.0.6 vs 1.2.1), garbage false."
+    },
+    {
+      "id": "TC-23",
+      "title": "CI lanes run twice on same-repo PR branches (bare push + pull_request)",
+      "severity": "low",
+      "area": "ci-cost",
+      "evidence": "unit.yml, e2e.yml, agents.yml, toast-linux.yml, toast-macos.yml, toast-native.yml triggered on bare `push:` + `pull_request:`; concurrency keyed on github.ref does not dedupe push vs PR refs, so a same-repo PR branch ran every lane twice. agents.yml also ran the full 3-OS install matrix on docs-only commits.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "Restricted `push:` to `branches: [main]` on all six (mirroring the live-* lanes); pull_request unchanged. Added the shared paths-ignore ['**/*.md','docs/**','LICENSE','.gitignore'] to agents.yml on both push and pull_request.",
+      "verification": "YAML reviewed against the live-*.yml pattern already in the repo."
+    },
+    {
+      "id": "TC-24",
+      "title": "No npm release pipeline; npm latest (1.0.6) far behind the repo (1.2.0); zero tags/releases",
+      "severity": "high",
+      "area": "release-rails",
+      "evidence": "package.json version was 1.2.0 vs npm 1.0.6; no .github/workflows/release.yml; no git tags or GitHub releases.",
+      "why_it_matters": "Users installing from npm get a stale build; there was no automated, provenance-signed path to publish.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "Added .github/workflows/release.yml (triggers on push of tag v*): (a) 3-OS x node 18/20/22 unit matrix — npm test also covers the unit-safe toast tests (live paths gated behind AAN_TOAST_LIVE, unset); (b) tag/version match + plugin-manifest lockstep + `npm pack --dry-run`; (c) `npm publish --provenance --access public` with id-token: write + NPM_TOKEN; (d) `gh release create --verify-tag --generate-notes` with contents: write. Bumped to 1.2.1 via `npm version 1.2.1 --no-git-tag-version` (ran the repo's sync-plugin-version.mjs, syncing plugin.json + marketplace.json). No tag created, nothing published — the maintainer cuts the tag after adding NPM_TOKEN.",
+      "verification": "Version sync confirmed (package.json/plugin.json/marketplace.json all 1.2.1); release.yml is deliberately un-triggered until a v* tag is pushed."
+    },
+    {
+      "id": "MD-19",
+      "title": "docs/audits/ convention lapsed — demand passes 3-5 shipped with no audit record",
+      "severity": "low",
+      "area": "process",
+      "evidence": "docs/audits/ held only 2026-07-09-second-pass.json + schema.json; PRs #5-#8 (1.1.0 five-feature pass, macOS/Windows/Linux proof passes) landed without records.",
+      "confidence": "high",
+      "status": "fixed",
+      "resolution": "Wrote this record (docs/audits/2026-07-16-final-pass.json) against the existing schema, capturing all findings from both audit lenses."
+    },
+    {
+      "id": "RT-21",
+      "title": "windows.mjs has no `--` parity for leading-dash content (parallel to RT-16)",
+      "severity": "low",
+      "area": "toast-delivery",
+      "evidence": "The Windows toast backend passes title/message as PowerShell -File parameters. Reviewed for the same dash-parsing risk as Linux.",
+      "why_it_matters": "Considered because RT-16 was a real dash bug on Linux.",
+      "confidence": "medium",
+      "status": "wont_fix",
+      "resolution": "Accepted. A PowerShell [string] parameter consumes the next token positionally regardless of a leading dash; it only misparses if the message value exactly equals another declared parameter name — not the case for notification bodies. No `--` equivalent needed. Left unchanged."
+    },
+    {
+      "id": "CL-22",
+      "title": "patch-config TOML edits via string surgery (existing TODO CL-18)",
+      "severity": "low",
+      "area": "config-patching",
+      "evidence": "setup/patch-config.mjs performs Codex TOML edits with guarded string manipulation rather than a TOML parser (prior-pass finding CL-18).",
+      "confidence": "medium",
+      "status": "wont_fix",
+      "resolution": "Accepted, re-reviewed. The surgery is guarded and covered by patch-config*.test.mjs; introducing a TOML dependency contradicts the zero-dependency posture. Left as the documented CL-18 TODO."
+    },
+    {
+      "id": "RT-22",
+      "title": "rebuildHooksState / stripHooksStateKeys duplication",
+      "severity": "low",
+      "area": "maintainability",
+      "evidence": "The two helpers share structure but are intentionally separate to keep the corruption-preventing rebuild path isolated.",
+      "confidence": "medium",
+      "status": "wont_fix",
+      "resolution": "Accepted. Unifying them risks reintroducing the exact hooks-state corruption the split prevents; the duplication is deliberate and low-cost. Left unchanged."
+    },
+    {
+      "id": "TC-25",
+      "title": "No CI lane proves real WSL toast delivery to the Windows host",
+      "severity": "low",
+      "area": "test-coverage",
+      "evidence": "tests/platforms-wsl.test.mjs covers detection + interop invocation only; end-to-end cross-boundary delivery is unproven.",
+      "confidence": "high",
+      "status": "deferred",
+      "resolution": "Deferred — not feasible on hosted runners (a runner cannot host both a WSL guest and an interactive Windows desktop). Documented as a README proof boundary (MD-18) instead. Revisit only with a self-hosted WSL+desktop runner."
+    },
+    {
+      "id": "TC-26",
+      "title": "npm publish of v1.2.1 to the real user funnel",
+      "severity": "high",
+      "area": "release-rails",
+      "evidence": "npm latest is 1.0.6; release.yml exists but is un-triggered; NPM_TOKEN secret and a v1.2.1 tag are prerequisites.",
+      "confidence": "high",
+      "status": "deferred",
+      "resolution": "Blocked on maintainer: add the NPM_TOKEN repo secret (npm automation token, publish scope), then `git tag v1.2.1 && git push origin v1.2.1` to trigger release.yml. CI must not tag or publish itself."
+    },
+    {
+      "id": "TC-27",
+      "title": "Linux doctor --deep has no daemon read-back probe",
+      "severity": "low",
+      "area": "cli-candor",
+      "evidence": "cli/doctor-checks.mjs — --deep only has a real probe on darwin (NC DB read-back). Linux/win32 now report 'not available' (CL-19) rather than silently no-op.",
+      "confidence": "high",
+      "status": "deferred",
+      "resolution": "Deferred follow-up: build a Linux notification-daemon (e.g. dunst history) read-back so --deep can verify real delivery there, mirroring the macOS lane. This pass ships the honest 'not available' line as the interim behavior."
+    }
+  ]
+}

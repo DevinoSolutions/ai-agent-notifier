@@ -1,0 +1,88 @@
+name: Release
+
+# Publishes to npm + drafts a GitHub release when a semver tag is pushed.
+# CI never tags itself — the maintainer cuts the release:
+#   npm version <patch|minor|major>   # bumps package.json + syncs plugin manifests
+#   git push && git push --tags       # the tag push triggers THIS workflow
+# Requires the NPM_TOKEN repo secret (an npm automation token with publish rights).
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: 'release-${{ github.ref }}'
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Unit (${{ matrix.os }}, node ${{ matrix.node }})
+    # Same 3-OS × node 18/20/22 gate as unit.yml. npm test also runs the
+    # unit-safe toast tests (tests/platforms.test.mjs); the live fire paths there
+    # are gated behind AAN_TOAST_LIVE, which we deliberately do NOT set — so this
+    # is the non-live sanity for the toast backends, no daemon/desktop required.
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [18, 20, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm install
+      - name: Unit + integration tests
+        run: npm test
+        env:
+          AAN_SENTRY_TEST_DSN: ${{ secrets.AAN_SENTRY_TEST_DSN }}
+
+  verify-payload:
+    name: Verify tag/version match + npm payload
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Tag must match package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "FAIL: tag v$TAG does not match package.json version $PKG"; exit 1
+          fi
+          echo "tag and package.json agree on $PKG"
+      - name: Plugin manifests must be in lockstep with package.json
+        # idempotent; exits 1 if a manifest is missing or drifted from package.json
+        run: |
+          node scripts/sync-plugin-version.mjs
+          git diff --exit-code .claude-plugin || {
+            echo "FAIL: plugin manifests are not synced to package.json — run 'npm version' before tagging"; exit 1;
+          }
+      - name: Pack dry-run — list the exact files that will ship
+        run: npm pack --dry-run
+
+  publish:
+    name: Publish to npm (provenance) + GitHub release
+    needs: [test, verify-payload]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub release
+      id-token: write # npm provenance attestation (Sigstore / OIDC)
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install
+      - name: Publish to npm with provenance
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Create GitHub release with generated notes
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

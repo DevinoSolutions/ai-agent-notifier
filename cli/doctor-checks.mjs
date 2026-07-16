@@ -170,6 +170,11 @@ export async function runChecks({ config, configProblem = null, deep = false, st
   if (p === 'darwin') {
     try { results.push(await toastAuthCheck(deep, strict)); }
     catch (err) { results.push({ id: 'toast-auth', channel: 'toast', status: 'warn', detail: `auth check errored: ${err.message}` }); }
+  } else if (deep) {
+    // --deep's only real probe is the macOS NC read-back; on linux/win32 it would
+    // otherwise silently no-op, so say so explicitly (Linux daemon read-back is a
+    // deferred follow-up — see docs/audits/2026-07-16-final-pass.json, TC-27).
+    results.push({ id: 'deep-probe', channel: 'toast', status: 'info', detail: `deep verification not available on ${p} (static checks only)` });
   }
   results.push(bellCheck(), ntfyCheck(config), webhookCheck(config), configCheck(config, configProblem));
   if (p === 'darwin') results.push(focusCheck());

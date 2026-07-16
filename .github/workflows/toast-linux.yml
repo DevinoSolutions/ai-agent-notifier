@@ -5,6 +5,7 @@ name: Toast Linux
 # title + body. Headless CI can't prove a human SAW it — see `npm run toast:demo`.
 on:
   push:
+    branches: [main]
     paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
   pull_request:
     paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']

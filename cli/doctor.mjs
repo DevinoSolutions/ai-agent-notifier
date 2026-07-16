@@ -7,7 +7,7 @@ import { loadConfigResult } from '../src/config-loader.mjs';
 import { runChecks } from './doctor-checks.mjs';
 import { c } from './ui.mjs';
 
-const ICON = { ok: c.success('✓'), warn: c.warn('⚠'), fail: c.error('✗') };
+const ICON = { ok: c.success('✓'), warn: c.warn('⚠'), fail: c.error('✗'), info: c.accent('ℹ') };
 
 export async function run(...args) {
   const flags = new Set(args.filter(Boolean));

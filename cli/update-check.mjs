@@ -50,8 +50,23 @@ function writeCache(cachePath, data) {
   } catch { /* cache is best-effort — a write failure just re-checks next run */ }
 }
 
+// True when `a` is a strictly newer semver than `b` (field-by-field numeric
+// compare, so 1.10.0 > 1.9.0 — a plain string `!==` would also fire when the
+// local build is AHEAD of npm's latest and nag users to "update" to an older
+// version). Pre-release/build metadata is ignored; anything unparseable is
+// treated as not-newer, so the check stays quiet rather than nagging wrongly.
+export function isNewer(a, b) {
+  const parse = (v) => String(v).split('-')[0].split('.').map((n) => parseInt(n, 10) || 0);
+  const [pa, pb] = [parse(a), parse(b)];
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+  }
+  return false;
+}
+
 // Query npm for the published 'latest' version. Resolves to the version string
-// when it differs from ours (an update is available), else null. Never throws.
+// only when it is strictly newer than ours (an update is available), else null.
+// Never throws.
 export function fetchLatest() {
   return new Promise((resolve) => {
     const req = https.get('https://registry.npmjs.org/ai-agent-notifier/latest', { timeout: 3000 }, (res) => {
@@ -60,7 +75,7 @@ export function fetchLatest() {
       res.on('end', () => {
         try {
           const latest = JSON.parse(data).version;
-          resolve(latest && latest !== pkg.version ? latest : null);
+          resolve(latest && isNewer(latest, pkg.version) ? latest : null);
         } catch { resolve(null); }
       });
     });

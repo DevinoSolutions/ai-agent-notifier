@@ -48,7 +48,7 @@ That's it. The setup wizard detects your platform and installed AI tools, wires 
 ## Features
 
 - **Desktop toast notifications** -- Windows (BurntToast), macOS (Notification Center), Linux (libnotify)
-- **WSL-native toasts** -- real Windows toast notifications from inside WSL, no Linux notification daemon needed
+- **WSL toast routing** -- toasts from inside WSL are routed to Windows over PowerShell interop instead of a Linux notification daemon (see the proof boundary below)
 - **Phone push notifications** -- Android & iOS via [ntfy](https://ntfy.sh) (free, no account required)
 - **Webhook notifications** -- Slack, Discord, Telegram, or any HTTP endpoint, with an optional auth header
 - **Rich notification content** -- Claude Code toasts and webhooks show what the agent actually said or asked, not a generic line
@@ -304,7 +304,6 @@ Hook fires (stdin JSON + --source flag)
 ### macOS
 
 - Uses built-in `osascript` -- zero additional dependencies
-- Falls back to `terminal-notifier` for richer features if available
 
 ### Linux
 
@@ -314,9 +313,10 @@ Hook fires (stdin JSON + --source flag)
 ### WSL
 
 - Auto-detected -- no config needed
-- Toast notifications route to a real Windows toast via PowerShell interop (`powershell.exe`/`pwsh.exe` across the `/mnt/c` boundary), not `notify-send`/D-Bus
+- Toast notifications are routed to Windows via PowerShell interop (`powershell.exe`/`pwsh.exe` across the `/mnt/c` boundary) instead of `notify-send`/D-Bus, so no Linux notification daemon is needed
 - Needs WSL2 interop enabled and a Windows PowerShell present -- both are on by default
 - Terminal bell and ntfy behave exactly as on native Linux
+- **Proof boundary:** WSL detection and the interop invocation are unit-tested (`tests/platforms-wsl.test.mjs`), but — unlike the native Linux/macOS/Windows toast lanes — no hosted CI runner proves a toast reaches the Windows host end to end, so this path is not claimed in the Testing table below
 
 ## Requirements
 
@@ -427,6 +427,8 @@ Each job runs as its own GitHub Actions workflow. The badge in every row is its 
 ² The on-screen render proof draws the banner with **our** tuned `dunstrc` (large mono font, high contrast) on a **virtual** X display (Xvfb), so it proves the product path renders legible, machine-readable pixels — not that every user's desktop theme renders identically. macOS has no equivalent lane: on the hosted runner a real notification records in Notification Center but never presents a banner, and the accessibility/screen-capture routes are walled off by TCC, so **layer 2 (recorded in Notification Center) is the honest macOS CI ceiling** — on-screen rendering there is a real-machine concern checked by `aan doctor --deep`. See [`docs/research/2026-07-15-layer3-render-proof.md`](docs/research/2026-07-15-layer3-render-proof.md).
 
 ³ Like macOS, Windows is proven to **layer 2** in CI: the hosted `windows-latest` runner is a headless Session-0 environment with no interactive desktop, so the toast is **recorded** by the Windows notification platform but no banner is presented on a screen. The gate reads the record back out of `wpndatabase.db` (WAL-aware — a freshly fired toast lives in the DB's write-ahead log, so an `immutable=1` open would miss it and falsely report absence) and asserts the exact nonce in the title and body. On-screen rendering is a real-machine concern checked by `aan doctor` (PowerShell + BurntToast + execution-policy state). See [`docs/research/2026-07-15-layer3-render-proof.md`](docs/research/2026-07-15-layer3-render-proof.md).
+
+**WSL** has no row above on purpose. WSL toast routing (PowerShell interop across the `/mnt/c` boundary) is unit-tested for detection and interop invocation (`tests/platforms-wsl.test.mjs`, fully deps-injected), but a hosted CI runner cannot host both a WSL guest and an interactive Windows desktop to prove a toast crosses the boundary and lands — so, matching how the Codex `exec` lane doesn't claim the approval-decision loop (¹), that end-to-end delivery is deliberately **not** asserted here.
 
 ### Run it yourself
 

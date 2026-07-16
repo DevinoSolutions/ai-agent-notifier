@@ -1,6 +1,6 @@
 {
   "name": "ai-agent-notifier",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Desktop & phone notifications for AI coding agents in VS Code and CLI. Supports Claude Code, Codex, Gemini CLI, and Cursor with toast alerts and ntfy push notifications.",
   "type": "module",
   "bin": {

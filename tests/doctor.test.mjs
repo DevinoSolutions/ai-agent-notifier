@@ -37,6 +37,15 @@ test('runChecks never throws even with a hostile config', async () => {
   await assert.doesNotReject(runChecks({ config: { events: 'not-an-object' }, deep: false }));
 });
 
+test('deep on a platform with no deep probe reports it explicitly (never silently no-ops)', async (t) => {
+  if (os.platform() === 'darwin') return t.skip('darwin has a real --deep probe (NC read-back)');
+  const results = await runChecks({ config: baseConfig(), deep: true });
+  const probe = results.find((r) => r.id === 'deep-probe');
+  assert.ok(probe, 'a deep-probe row must be present when --deep is unavailable');
+  assert.equal(probe.status, 'info');
+  assert.match(probe.detail, /deep verification not available/);
+});
+
 function baseConfig() {
   return {
     toast: { enabled: true }, ntfy: { enabled: false, topic: '' },
