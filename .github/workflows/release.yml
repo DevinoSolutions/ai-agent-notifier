@@ -82,7 +82,13 @@ jobs:
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Create GitHub release with generated notes
-        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+      - name: Extract curated release notes from CHANGELOG.md
+        # Fails loudly if this version has no CHANGELOG section, so we never
+        # publish a GitHub release with empty or wrong notes.
+        run: node scripts/extract-changelog.mjs "${GITHUB_REF_NAME#v}" > RELEASE_NOTES.md
+      - name: Create GitHub release
+        # Curated CHANGELOG section as the body; --generate-notes appends the
+        # auto-generated commit/PR list below it.
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --notes-file RELEASE_NOTES.md --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
