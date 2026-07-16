@@ -13,6 +13,10 @@ assets/icon.png
 graphify-out/
 .graphify_*
 
+# Python bytecode (scripts/lib/wpn-readback.py and friends)
+__pycache__/
+*.pyc
+
 # OS-generated cruft
 Thumbs.db
 .DS_Store

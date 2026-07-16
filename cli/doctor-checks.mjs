@@ -32,8 +32,70 @@ function toastBackendCheck() {
       ? { id: 'toast-backend', channel: 'toast', status: 'ok', detail: 'notify-send present' }
       : { id: 'toast-backend', channel: 'toast', status: 'warn', detail: 'notify-send missing', hint: 'install libnotify-bin' };
   }
-  // win32: BurntToast is a PowerShell module; presence is checked at send time.
+  // win32 is handled by windowsToastBackendCheck (async, probes PowerShell).
   return { id: 'toast-backend', channel: 'toast', status: 'ok', detail: 'BurntToast checked at send time' };
+}
+
+// Real Windows backend probe: the product path is `pwsh -File toast.ps1` →
+// `Import-Module BurntToast`, so the honest checks are (1) PowerShell is present,
+// (2) the BurntToast module resolves, (3) no policy-scope execution policy blocks
+// scripts. Note the product invokes toast.ps1 with `-ExecutionPolicy Bypass`, so
+// only a MachinePolicy/UserPolicy of Restricted|AllSigned actually blocks it
+// (those scopes override -Bypass); Process/CurrentUser/LocalMachine do not.
+// Dependencies are injected so this is unit-testable on any OS.
+const BLOCKING_POLICIES = new Set(['Restricted', 'AllSigned']);
+
+export function windowsToastBackendCheck({ hasBin = has, psRun = defaultPsRun } = {}) {
+  const shell = hasBin('pwsh') ? 'pwsh' : hasBin('powershell') ? 'powershell' : null;
+  if (!shell) {
+    return {
+      id: 'toast-backend', channel: 'toast', status: 'fail',
+      detail: 'PowerShell not found (pwsh/powershell) — Windows toasts cannot fire',
+      hint: 'install PowerShell 7: https://aka.ms/powershell',
+    };
+  }
+
+  let probe;
+  try { probe = psRun(shell); }
+  catch (err) {
+    return {
+      id: 'toast-backend', channel: 'toast', status: 'warn',
+      detail: `${shell} present but backend probe failed: ${err.message}`,
+      hint: 'run `ai-agent-notifier test toast` to see the real error',
+    };
+  }
+
+  const blocked = [probe.machinePolicy, probe.userPolicy].filter((p) => BLOCKING_POLICIES.has(p));
+  if (blocked.length) {
+    return {
+      id: 'toast-backend', channel: 'toast', status: 'fail',
+      detail: `PowerShell execution policy (${blocked.join('/')}) blocks scripts even with -ExecutionPolicy Bypass`,
+      hint: 'a MachinePolicy/UserPolicy set by Group Policy overrides -Bypass; contact your admin or set a non-restrictive policy',
+    };
+  }
+  if (!probe.burntToast) {
+    return {
+      id: 'toast-backend', channel: 'toast', status: 'warn',
+      detail: `${shell} present, BurntToast module not installed`,
+      hint: 'Install-Module BurntToast -Scope CurrentUser  (or run: ai-agent-notifier setup)',
+    };
+  }
+  return { id: 'toast-backend', channel: 'toast', status: 'ok', detail: `${shell} + BurntToast present` };
+}
+
+// Default probe: one PowerShell call returning BurntToast presence + the two
+// policy scopes that can override -Bypass. Returns a plain object; throws on spawn
+// failure (caught above and surfaced as a warn).
+function defaultPsRun(shell) {
+  const cmd =
+    "$bt=[bool](Get-Module -ListAvailable -Name BurntToast);" +
+    "$mp=(Get-ExecutionPolicy -Scope MachinePolicy).ToString();" +
+    "$up=(Get-ExecutionPolicy -Scope UserPolicy).ToString();" +
+    "[pscustomobject]@{burntToast=$bt;machinePolicy=$mp;userPolicy=$up}|ConvertTo-Json -Compress";
+  const out = execFileSync(shell, ['-NoProfile', '-NonInteractive', '-Command', cmd], {
+    encoding: 'utf8', timeout: 15000,
+  });
+  return JSON.parse(out.trim());
 }
 
 function bellCheck() {
@@ -98,7 +160,13 @@ async function toastAuthCheck(deep, strict) {
 // deep-mode warns into fails so CI can gate on the product diagnostic.
 export async function runChecks({ config, configProblem = null, deep = false, strict = false }) {
   const p = os.platform();
-  const results = [toastBackendCheck()];
+  const results = [];
+  if (p === 'win32') {
+    try { results.push(windowsToastBackendCheck()); }
+    catch (err) { results.push({ id: 'toast-backend', channel: 'toast', status: 'warn', detail: `backend check errored: ${err.message}` }); }
+  } else {
+    results.push(toastBackendCheck());
+  }
   if (p === 'darwin') {
     try { results.push(await toastAuthCheck(deep, strict)); }
     catch (err) { results.push({ id: 'toast-auth', channel: 'toast', status: 'warn', detail: `auth check errored: ${err.message}` }); }

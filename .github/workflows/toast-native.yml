@@ -1,8 +1,10 @@
 name: Toast Native
 
 # Real native desktop-notification coverage on Windows: fires the real BurntToast
-# backend and asserts the OS accepted the toast. macOS delivery is proven by the
-# toast-macos.yml lane (Notification Center DB capture).
+# backend and reads the notification back out of the Windows push-notification
+# store (wpndatabase.db) to prove the OS platform recorded the exact payload —
+# layer 2, not just an exit-0 check. macOS delivery is proven by the toast-macos.yml
+# lane (Notification Center DB capture).
 on:
   push:
     paths-ignore: ['**/*.md', 'docs/**', 'LICENSE', '.gitignore']
@@ -33,5 +35,19 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: Install-Module -Name BurntToast -Force -Scope CurrentUser -AllowClobber
-      - name: Fire the real native toast backend and assert success
+      - name: Fire the real native toast backend and assert success (layer 1)
         run: node --test tests/platforms.test.mjs
+
+      - name: Layer-2 read-back gate — toast recorded in wpndatabase.db (nonce in title + body)
+        if: runner.os == 'Windows'
+        env:
+          RENDER_OUT: ${{ runner.temp }}/win-readback-proof
+        run: node scripts/live-toast-windows.mjs
+
+      - name: Upload read-back evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-readback-proof
+          path: ${{ runner.temp }}/win-readback-proof
+          if-no-files-found: warn
