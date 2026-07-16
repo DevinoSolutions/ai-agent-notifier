@@ -43,10 +43,18 @@ async function main() {
 
   // HARD: the Stop hook must deliver an ntfy push. If the hook does not fire in
   // this mode, fix how we drive the agent — do not weaken this check.
+  //
+  // Body assertion is HARD but does NOT check `marker`: ntfy rich content is
+  // default-OFF for privacy (src/transcript.mjs), so the ntfy body is the generic
+  // router message for a claude Stop (task_complete) → "<project>: Task complete",
+  // never the assistant's nonce. That generic body is deterministic, so gating on
+  // it is safe; the assistant's rich text is proven on the toast lane, not here.
   await pollForPush({
     topic,
     match: (m) => m.title === 'Claude Code',
+    assertBody: (m) => typeof m.message === 'string' && m.message.endsWith('Task complete'),
     failMessage: 'FAIL: Stop hook did not deliver an ntfy push within the poll window',
+    bodyFailMessage: 'FAIL: ntfy body was not the expected task_complete message ("…: Task complete")',
     passMessage: 'PASS (hard): Stop hook delivered an ntfy push',
   });
 

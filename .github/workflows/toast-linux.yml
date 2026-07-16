@@ -31,6 +31,17 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y dunst dbus-x11 xvfb libnotify-bin fonts-dejavu-core imagemagick tesseract-ocr x11-apps
       - name: Fire a real notification and assert dunst captured it (layer 2 — daemon record)
         run: xvfb-run -a dbus-run-session -- node scripts/live-toast-linux.mjs
+      - name: Prove `aan doctor --deep` verifies real delivery via dunst read-back (product diagnostic)
+        # Runs the SHIPPING CLI (not a bespoke script): the Linux --deep probe fires
+        # through notify-send and reads the toast back out of dunst's history. This
+        # turns the doctor probe (TC-27) into a hard-proven behaviour, not unit-only.
+        run: |
+          xvfb-run -a dbus-run-session -- bash -euo pipefail -c '
+            dunst &
+            for i in $(seq 1 40); do dunstctl is-paused >/dev/null 2>&1 && break; sleep 0.25; done
+            node cli/index.mjs doctor --deep --json | tee /tmp/doctor-deep.json
+            node -e "const j=JSON.parse(require(\"fs\").readFileSync(\"/tmp/doctor-deep.json\",\"utf8\"));const d=j.checks.find(c=>c.id===\"toast-deep\");if(!d){console.error(\"FAIL: no toast-deep row in doctor --deep output\");process.exit(1);}if(d.status!==\"ok\"){console.error(\"FAIL: toast-deep status=\"+d.status+\" — \"+d.detail);process.exit(1);}console.log(\"PASS (hard): aan doctor --deep verified real delivery via dunst — \"+d.detail);"
+          '
       - name: Prove it renders legible pixels on X (layer 3 — OCR-verified)
         env:
           RENDER_OUT: /tmp/linux-render-proof

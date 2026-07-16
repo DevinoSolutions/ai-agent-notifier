@@ -112,13 +112,26 @@ export function setupIsolatedHome({ prefix, dir, topic, base = os.tmpdir(), seed
 // HARD: poll ntfy for the delivered push and fail (exit 1) if it never arrives.
 // Consolidates the poll → assert → log block shared by the Claude and Gemini
 // drivers. Returns the matched message on success.
-export async function pollForPush({ topic, match, attempts = 22, delayMs = 2000, failMessage, passMessage }) {
+//
+// `assertBody(msg)` is an optional HARD gate on the delivered BODY. The ntfy body
+// is deterministic — ntfy rich content is default-OFF for privacy (see
+// src/transcript.mjs), so the body is always the generic router message
+// ("<project>: Task complete"), never the assistant's words — so gating on it is
+// safe and not intermittent. The matched body is always LOGGED (it used to be
+// invisible: only a fixed pass string was printed, so historical runs could not
+// prove what body actually shipped).
+export async function pollForPush({ topic, match, attempts = 22, delayMs = 2000, failMessage, passMessage, assertBody, bodyFailMessage }) {
   const msg = await ntfyPoll({ topic, match, attempts, delayMs });
   if (!msg) {
     console.error(failMessage || 'FAIL: hook did not deliver an ntfy push within the poll window');
     process.exit(1);
   }
+  console.log(`  ntfy push received — title="${msg.title}" body="${msg.message ?? ''}"`);
   if (passMessage) console.log(passMessage);
+  if (assertBody && !assertBody(msg)) {
+    console.error(bodyFailMessage || `FAIL: ntfy push body did not match expectation — body="${msg.message ?? ''}"`);
+    process.exit(1);
+  }
   return msg;
 }
 
