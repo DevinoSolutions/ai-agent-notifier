@@ -4,7 +4,16 @@ name: Release
 # CI never tags itself — the maintainer cuts the release:
 #   npm version <patch|minor|major>   # bumps package.json + syncs plugin manifests
 #   git push && git push --tags       # the tag push triggers THIS workflow
-# Requires the NPM_TOKEN repo secret (an npm automation token with publish rights).
+#
+# Auth is TOKENLESS via npm Trusted Publishing (OIDC) — there is NO long-lived
+# NPM_TOKEN secret to store, rotate, or leak. The maintainer configures a
+# Trusted Publisher once at npmjs.com → the ai-agent-notifier package → Settings
+# → Trusted Publisher → GitHub Actions, with:
+#   Organization/user: DevinoSolutions
+#   Repository:        ai-agent-notifier
+#   Workflow filename: release.yml
+# npm then trusts a short-lived OIDC token minted by THIS workflow (id-token:
+# write) and no other. Provenance attestations are generated automatically.
 on:
   push:
     tags: ['v*']
@@ -70,18 +79,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the GitHub release
-      id-token: write # npm provenance attestation (Sigstore / OIDC)
+      id-token: write # mint the OIDC token npm trusts for auth + provenance
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           registry-url: 'https://registry.npmjs.org'
+      - name: Ensure npm supports trusted publishing (OIDC needs >= 11.5.1)
+        # Node 22 bundles npm 10.x; trusted publishing requires npm >= 11.5.1.
+        run: npm install -g npm@latest
       - run: npm install
-      - name: Publish to npm with provenance
+      - name: Publish to npm (tokenless, OIDC trusted publishing)
+        # No NODE_AUTH_TOKEN: npm detects the GitHub Actions OIDC environment and
+        # authenticates against the configured Trusted Publisher. Provenance is
+        # emitted automatically; --provenance is kept as an explicit assertion.
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Extract curated release notes from CHANGELOG.md
         # Fails loudly if this version has no CHANGELOG section, so we never
         # publish a GitHub release with empty or wrong notes.

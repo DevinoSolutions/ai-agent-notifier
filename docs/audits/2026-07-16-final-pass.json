@@ -16,7 +16,7 @@
     ],
     "checks_failed": [],
     "blocked": [
-      "npm publish of v1.2.1 — requires the maintainer to add the NPM_TOKEN repo secret and push a v1.2.1 tag; CI must never publish or tag itself (release.yml is the rail, deliberately un-triggered)",
+      "npm publish of v1.2.1 — requires the maintainer to configure an npm Trusted Publisher (OIDC) for DevinoSolutions/ai-agent-notifier + release.yml at npmjs.com, then push a v1.2.1 tag; auth is tokenless (no NPM_TOKEN secret) and CI must never publish or tag itself (release.yml is the rail, deliberately un-triggered). [Superseded the earlier NPM_TOKEN-secret plan.]",
       "Real WSL toast-to-Windows-host delivery — not provable on a hosted GitHub runner (cannot host a WSL guest and an interactive Windows desktop together); documented as a proof boundary instead",
       "Linux doctor --deep daemon read-back — CLOSED in the follow-up post-audit hardening pass (TC-27 now 'fixed': dunst-history read-back probe + CI gate on toast-linux.yml)"
     ]
@@ -227,10 +227,10 @@
       "title": "npm publish of v1.2.1 to the real user funnel",
       "severity": "high",
       "area": "release-rails",
-      "evidence": "npm latest is 1.0.6; release.yml exists but is un-triggered; NPM_TOKEN secret and a v1.2.1 tag are prerequisites.",
+      "evidence": "npm latest is 1.0.6; release.yml exists but is un-triggered; an npm Trusted Publisher (OIDC) config and a v1.2.1 tag are prerequisites.",
       "confidence": "high",
       "status": "deferred",
-      "resolution": "Blocked on maintainer: add the NPM_TOKEN repo secret (npm automation token, publish scope), then `git tag v1.2.1 && git push origin v1.2.1` to trigger release.yml. CI must not tag or publish itself."
+      "resolution": "Blocked on maintainer: configure an npm Trusted Publisher (OIDC) for DevinoSolutions/ai-agent-notifier + release.yml at npmjs.com (tokenless — no NPM_TOKEN secret; supersedes the earlier automation-token plan), then `git tag v1.2.1 && git push origin v1.2.1` to trigger release.yml. CI must not tag or publish itself."
     },
     {
       "id": "TC-27",
