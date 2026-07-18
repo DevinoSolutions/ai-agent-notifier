@@ -1,9 +1,9 @@
 ---
 name: setup
-description: Set up ai-agent-notifier notifications for all AI tools
+description: Set up anotifier notifications for all AI tools
 ---
 
-Run the ai-agent-notifier setup wizard. Execute this command in the terminal:
+Run the anotifier setup wizard. Execute this command in the terminal:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/cli/index.mjs" setup

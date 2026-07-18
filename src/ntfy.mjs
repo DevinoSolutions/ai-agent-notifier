@@ -31,7 +31,7 @@ export function sendNtfy(ntfyConfig, notification) {
 
     // A bare-hostname typo (server: "ntfy.sh" with no scheme) makes `new URL`
     // throw, which would break this module's resolve-false-never-throw contract
-    // and crash `aan test ntfy` with a raw "Invalid URL" (mirrors webhook.mjs).
+    // and crash `anotifier test ntfy` with a raw "Invalid URL" (mirrors webhook.mjs).
     let parsed;
     try {
       parsed = new URL(url);

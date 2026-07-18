@@ -51,7 +51,7 @@ describe('seedTempHome + writeUserConfig', () => {
     const home = seedTempHome();
     try {
       writeUserConfig(home, { ntfy: { topic: 'xyz' } });
-      const cfg = JSON.parse(fs.readFileSync(path.join(home, '.ai-agent-notifier', 'config.json'), 'utf8'));
+      const cfg = JSON.parse(fs.readFileSync(path.join(home, '.anotifier', 'config.json'), 'utf8'));
       assert.equal(cfg.ntfy.topic, 'xyz');
     } finally {
       fs.rmSync(home, { recursive: true, force: true });
@@ -63,7 +63,7 @@ describe('clearLock', () => {
   it('removes an existing lock and is a no-op when missing', () => {
     const home = seedTempHome();
     try {
-      const dir = path.join(home, '.ai-agent-notifier');
+      const dir = path.join(home, '.anotifier');
       fs.mkdirSync(dir, { recursive: true });
       const lock = path.join(dir, '.lock-claude');
       fs.writeFileSync(lock, '123');

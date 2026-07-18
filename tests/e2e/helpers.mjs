@@ -61,7 +61,7 @@ export function seedTempHome() {
 // window. Lock files are keyed `.lock-<source>-<event>[-<session>]`, so clear
 // every lock belonging to the source.
 export function clearLock(home, source) {
-  const dir = path.join(home, '.ai-agent-notifier');
+  const dir = path.join(home, '.anotifier');
   try {
     for (const name of fs.readdirSync(dir)) {
       if (name.startsWith(`.lock-${source}`)) {

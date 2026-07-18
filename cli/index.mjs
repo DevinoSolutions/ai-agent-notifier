@@ -22,7 +22,7 @@ async function printUpdateBanner(c, updatePromise) {
   const latest = await updatePromise;
   if (latest) {
     console.log(`  ${c.warn('↑')} ${c.warn(`Update available: v${pkg.version} → v${latest}`)}`);
-    console.log(`    ${c.muted('npm i -g ai-agent-notifier@latest')}\n`);
+    console.log(`    ${c.muted('npm i -g anotifier@latest')}\n`);
   }
 }
 
@@ -34,7 +34,7 @@ async function main() {
   const updatePromise = checkForUpdate();
 
   if (command === '--version' || command === '-v' || command === '-V') {
-    console.log(`${c.bold('ai-agent-notifier')} ${c.accent(`v${pkg.version}`)}`);
+    console.log(`${c.bold('anotifier')} ${c.accent(`v${pkg.version}`)}`);
     await printUpdateBanner(c, updatePromise);
     process.exit(0);
   }
@@ -47,7 +47,7 @@ async function main() {
 
   const loader = COMMANDS[command];
   if (!loader) {
-    console.error(`${c.error('Error:')} Unknown command "${command}"\n  Run ${c.muted('ai-agent-notifier --help')} for usage.`);
+    console.error(`${c.error('Error:')} Unknown command "${command}"\n  Run ${c.muted('anotifier --help')} for usage.`);
     process.exit(1);
   }
 
@@ -68,7 +68,7 @@ function printHelp(c, banner) {
   console.log(banner());
   console.log(`  ${c.muted('Cross-platform notifications for AI coding agents')}`);
   console.log();
-  console.log(`  ${c.bold('Usage:')} ${c.white('ai-agent-notifier')} ${c.accent('<command>')} ${c.muted('[options]')}`);
+  console.log(`  ${c.bold('Usage:')} ${c.white('anotifier')} ${c.accent('<command>')} ${c.muted('[options]')}`);
   console.log();
   console.log(`  ${c.bold('Commands:')}`);
   console.log(`    ${c.accent('setup')}             ${c.white('First-time setup wizard')}`);
@@ -80,9 +80,9 @@ function printHelp(c, banner) {
   console.log(`    ${c.muted('--version, -v')}     ${c.white('Show version and check for updates')}`);
   console.log();
   console.log(`  ${c.bold('Examples:')}`);
-  console.log(`    ${c.muted('$')} ${c.white('npx ai-agent-notifier setup')}`);
-  console.log(`    ${c.muted('$')} ${c.white('ai-agent-notifier test toast')}`);
-  console.log(`    ${c.muted('$')} ${c.white('ai-agent-notifier config ntfy')}`);
+  console.log(`    ${c.muted('$')} ${c.white('npx anotifier setup')}`);
+  console.log(`    ${c.muted('$')} ${c.white('anotifier test toast')}`);
+  console.log(`    ${c.muted('$')} ${c.white('anotifier config ntfy')}`);
   console.log();
 }
 

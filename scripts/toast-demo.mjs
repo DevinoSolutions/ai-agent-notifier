@@ -44,7 +44,7 @@ async function main() {
     : platform === 'darwin' ? 'macos.mjs (osascript)'
       : 'linux.mjs (notify-send)';
 
-  const config = loadConfig(); // real merged config (defaults + ~/.ai-agent-notifier)
+  const config = loadConfig(); // real merged config (defaults + ~/.anotifier)
   const sendToast = await resolveToastBackend();
 
   const sources = args.source ? [args.source] : SOURCES;

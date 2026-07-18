@@ -1,6 +1,6 @@
 ---
 name: test
-description: Fire a test notification to verify ai-agent-notifier is working
+description: Fire a test notification to verify anotifier is working
 ---
 
 Send a test notification through all enabled channels. Execute this in the terminal:

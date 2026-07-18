@@ -17,9 +17,9 @@ describe('ntfy round-trip via `test ntfy`', () => {
 
     const msg = await ntfyPoll({
       topic,
-      match: (m) => m.title === 'ai-agent-notifier' && /Test notification/.test(m.message || ''),
+      match: (m) => m.title === 'anotifier' && /Test notification/.test(m.message || ''),
     });
     assert.ok(msg, 'expected the test notification to arrive at ntfy.sh');
-    assert.equal(msg.title, 'ai-agent-notifier');
+    assert.equal(msg.title, 'anotifier');
   });
 });

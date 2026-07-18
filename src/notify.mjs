@@ -27,7 +27,7 @@ export function dedupKey(event) {
 }
 
 export function acquireNotifyLock(key, baseDir = os.homedir()) {
-  const dir = path.join(baseDir, '.ai-agent-notifier');
+  const dir = path.join(baseDir, '.anotifier');
   const lockFile = path.join(dir, `.lock-${key}`);
   try { fs.mkdirSync(dir, { recursive: true }); } catch {}
   // Clean up locks older than the dedup window (locks are never released —

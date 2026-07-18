@@ -3,7 +3,7 @@ Set shell = CreateObject("WScript.Shell")
 home = shell.ExpandEnvironmentStrings("%USERPROFILE%")
 ' Try npm global path first, then standalone path
 Dim scriptPath
-scriptPath = home & "\.ai-agent-notifier\assets\windows\focus-window.ps1"
+scriptPath = home & "\.anotifier\assets\windows\focus-window.ps1"
 If Not CreateObject("Scripting.FileSystemObject").FileExists(scriptPath) Then
   ' Resolve from same directory as this VBS
   scriptPath = Replace(WScript.ScriptFullName, WScript.ScriptName, "") & "focus-window.ps1"

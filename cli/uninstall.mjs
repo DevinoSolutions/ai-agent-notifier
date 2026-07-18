@@ -16,14 +16,14 @@ export async function run() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   console.log();
-  console.log(`  ${c.bold('ai-agent-notifier')} ${c.accent('uninstall')}`);
+  console.log(`  ${c.bold('anotifier')} ${c.accent('uninstall')}`);
   console.log();
 
   // Resolve on EOF/close too, so a non-TTY stdin can't hang the prompt forever.
   const answer = await new Promise((resolve) => {
     let done = false;
     const finish = (v) => { if (!done) { done = true; resolve(v); } };
-    rl.question(`  ${c.warn('?')} Remove ai-agent-notifier hooks from all tools? ${c.muted('(y/N)')} `, finish);
+    rl.question(`  ${c.warn('?')} Remove anotifier hooks from all tools? ${c.muted('(y/N)')} `, finish);
     rl.on('close', () => finish(''));
   });
 
@@ -50,7 +50,7 @@ export async function run() {
 
   console.log();
   console.log(`    ${c.muted('Backups saved to')} ${c.white(backupDir)}`);
-  console.log(`    ${c.muted('Config at ~/.ai-agent-notifier/ preserved — delete manually if desired.')}`);
+  console.log(`    ${c.muted('Config at ~/.anotifier/ preserved — delete manually if desired.')}`);
   console.log();
 
   if (anyFailed) process.exitCode = 1;

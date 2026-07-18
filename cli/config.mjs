@@ -100,7 +100,7 @@ export async function run(section) {
   else if (section === 'events') await configEvents(rl, config);
   else if (section === 'sentry') await configSentry(rl, config);
   else {
-    log('\n  ai-agent-notifier config\n', 'bold');
+    log('\n  anotifier config\n', 'bold');
     log('  1. ntfy');
     log('  2. Webhook');
     log('  3. Sounds');

@@ -16,7 +16,7 @@ describe('acquireNotifyLock (real exported function)', () => {
 
   it('first acquire for a source succeeds', () => {
     assert.equal(acquireNotifyLock('claude', base), true);
-    const lock = path.join(base, '.ai-agent-notifier', '.lock-claude');
+    const lock = path.join(base, '.anotifier', '.lock-claude');
     assert.ok(fs.existsSync(lock));
     assert.equal(fs.readFileSync(lock, 'utf8'), String(process.pid));
   });
@@ -33,7 +33,7 @@ describe('acquireNotifyLock (real exported function)', () => {
 
   it('cleans a stale lock (>10s old) and re-acquires', () => {
     assert.equal(acquireNotifyLock('claude', base), true);
-    const lock = path.join(base, '.ai-agent-notifier', '.lock-claude');
+    const lock = path.join(base, '.anotifier', '.lock-claude');
     const past = new Date(Date.now() - 15000);
     fs.utimesSync(lock, past, past);
     assert.equal(acquireNotifyLock('claude', base), true, 'stale lock should be cleaned and re-acquired');
@@ -48,7 +48,7 @@ describe('acquireNotifyLock (real exported function)', () => {
   it('creates the lock directory if it does not exist', () => {
     const nested = path.join(base, 'does', 'not', 'exist');
     assert.equal(acquireNotifyLock('gemini', nested), true);
-    assert.ok(fs.existsSync(path.join(nested, '.ai-agent-notifier', '.lock-gemini')));
+    assert.ok(fs.existsSync(path.join(nested, '.anotifier', '.lock-gemini')));
   });
 });
 

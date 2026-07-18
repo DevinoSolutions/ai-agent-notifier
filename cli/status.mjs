@@ -80,7 +80,7 @@ export async function run() {
 
   // Build box content
   const lines = [
-    c.bold(`ai-agent-notifier ${c.accent(`v${pkg.version}`)}`),
+    c.bold(`anotifier ${c.accent(`v${pkg.version}`)}`),
     '',
     kv('Platform', platLabel),
     kv('Toast', `${toastLabel}${toastExtra}`),
@@ -121,7 +121,7 @@ export async function run() {
   if (latest) {
     console.log();
     console.log(`  ${c.warn('↑')} ${c.warn(`Update available: v${pkg.version} → v${latest}`)}`);
-    console.log(`    ${c.muted('npm i -g ai-agent-notifier@latest')}`);
+    console.log(`    ${c.muted('npm i -g anotifier@latest')}`);
   }
   console.log();
 }

@@ -83,8 +83,8 @@ async function main() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-tui-bell-'));
   fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
   fs.writeFileSync(path.join(home, '.claude', 'settings.json'), '{}\n');
-  fs.mkdirSync(path.join(home, '.ai-agent-notifier'), { recursive: true });
-  fs.writeFileSync(path.join(home, '.ai-agent-notifier', 'config.json'),
+  fs.mkdirSync(path.join(home, '.anotifier'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.anotifier', 'config.json'),
     JSON.stringify({ toast: { enabled: false }, ntfy: { enabled: false }, webhook: { enabled: false }, terminalBell: { enabled: true } }) + '\n');
 
   // claude runs from (and we pre-trust) this exact directory.

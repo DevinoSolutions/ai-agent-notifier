@@ -21,7 +21,7 @@ describe('real setup subprocess wires every detected tool', () => {
     assert.equal(res.status, 0, `setup exited non-zero: ${res.stderr}`);
 
     // Config saved with our topic
-    const cfg = readJSON(path.join(home, '.ai-agent-notifier', 'config.json'));
+    const cfg = readJSON(path.join(home, '.anotifier', 'config.json'));
     assert.equal(cfg.ntfy.topic, topic);
 
     // Claude

@@ -5,8 +5,8 @@ import path from 'node:path';
 import os from 'node:os';
 
 // We'll test with a temp dir as home
-const tmpDir = path.join(os.tmpdir(), 'ai-agent-notifier-test-' + Date.now());
-const configDir = path.join(tmpDir, '.ai-agent-notifier');
+const tmpDir = path.join(os.tmpdir(), 'anotifier-test-' + Date.now());
+const configDir = path.join(tmpDir, '.anotifier');
 const configPath = path.join(configDir, 'config.json');
 
 describe('config-loader', () => {
@@ -60,9 +60,9 @@ describe('config-loader', () => {
     assert.equal(raw.ntfy.topic, 'saved-topic');
   });
 
-  it('getConfigDir returns ~/.ai-agent-notifier', async () => {
+  it('getConfigDir returns ~/.anotifier', async () => {
     const { getConfigDir } = await import('../src/config-loader.mjs');
     const dir = getConfigDir();
-    assert.ok(dir.endsWith('.ai-agent-notifier'));
+    assert.ok(dir.endsWith('.anotifier'));
   });
 });

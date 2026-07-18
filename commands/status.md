@@ -3,7 +3,7 @@ name: status
 description: Show which AI tools are wired, notification config, and backend status
 ---
 
-Show the current status of ai-agent-notifier. Execute this in the terminal:
+Show the current status of anotifier. Execute this in the terminal:
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/cli/index.mjs" status

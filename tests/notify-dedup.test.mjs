@@ -45,7 +45,7 @@ describe('acquireNotifyLock window', () => {
 
   it('re-acquires once the lock is older than the ~1.5s window', () => {
     assert.equal(acquireNotifyLock('claude-task_complete', base), true);
-    const lock = path.join(base, '.ai-agent-notifier', '.lock-claude-task_complete');
+    const lock = path.join(base, '.anotifier', '.lock-claude-task_complete');
     const past = new Date(Date.now() - 2000);
     fs.utimesSync(lock, past, past);
     assert.equal(acquireNotifyLock('claude-task_complete', base), true, 'stale lock is replaced');
@@ -55,7 +55,7 @@ describe('acquireNotifyLock window', () => {
     // Occupy the config-dir path with a FILE so mkdir and the exclusive create
     // both fail with something other than EEXIST. A broken filesystem must
     // yield a (possibly duplicate) notification, never silence forever.
-    fs.writeFileSync(path.join(base, '.ai-agent-notifier'), 'not a directory');
+    fs.writeFileSync(path.join(base, '.anotifier'), 'not a directory');
     assert.equal(acquireNotifyLock('claude-task_complete', base), true);
   });
 });

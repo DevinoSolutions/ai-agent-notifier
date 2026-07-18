@@ -1,7 +1,7 @@
 // src/error-log.mjs — Error visibility for the hook path.
 // The hook must never crash the host agent, but failures must never be
-// invisible either: every error is appended to ~/.ai-agent-notifier/errors.log
-// (bounded size), surfaced by `ai-agent-notifier status`, and mirrored to
+// invisible either: every error is appended to ~/.anotifier/errors.log
+// (bounded size), surfaced by `anotifier status`, and mirrored to
 // Sentry when the user opted in via config.sentry.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -14,7 +14,7 @@ let sentryConfig = null;
 const pendingSentrySends = [];
 
 export function getErrorLogPath(baseDir = os.homedir()) {
-  return path.join(baseDir, '.ai-agent-notifier', 'errors.log');
+  return path.join(baseDir, '.anotifier', 'errors.log');
 }
 
 // Call once per process (from the hook entry point or a CLI command) with

@@ -21,9 +21,9 @@ export function randomTopic(prefix = 'aan-ci') {
   return `${prefix}-${s}`;
 }
 
-// Write ~/.ai-agent-notifier/config.json (merged over defaults by loadConfig).
+// Write ~/.anotifier/config.json (merged over defaults by loadConfig).
 export function writeUserConfig(home, partial) {
-  const dir = path.join(home, '.ai-agent-notifier');
+  const dir = path.join(home, '.anotifier');
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(partial, null, 2) + '\n');
 }

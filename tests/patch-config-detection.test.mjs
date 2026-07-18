@@ -11,7 +11,7 @@ import {
   detectManagedEvents, isManagedHookEntry,
 } from '../setup/patch-config.mjs';
 
-const NOTIFY = '/home/user/.npm/ai-agent-notifier/src/notify.mjs';
+const NOTIFY = '/home/user/.npm/anotifier/src/notify.mjs';
 const tmpDir = path.join(os.tmpdir(), 'patch-detect-test-' + Date.now());
 
 describe('isManagedHookEntry (shared predicate)', () => {
@@ -22,7 +22,7 @@ describe('isManagedHookEntry (shared predicate)', () => {
     assert.equal(isManagedHookEntry({ hooks: [{ type: 'command', command: `node "${NOTIFY}"` }] }), true);
   });
   it('matches the _managed_by tag', () => {
-    assert.equal(isManagedHookEntry({ _managed_by: 'ai-agent-notifier', hooks: [] }), true);
+    assert.equal(isManagedHookEntry({ _managed_by: 'anotifier', hooks: [] }), true);
   });
   it('does not match unrelated user hooks', () => {
     assert.equal(isManagedHookEntry({ command: 'echo hi' }), false);

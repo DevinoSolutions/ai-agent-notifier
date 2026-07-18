@@ -2,7 +2,7 @@
 //
 // Delivery verification for macOS notifications. Zero-dependency: shells out to
 // the preinstalled `sqlite3`, `plutil`, and `getconf`. Every function returns a
-// structured result and NEVER throws — callers (aan doctor, CI lanes) decide
+// structured result and NEVER throws — callers (anotifier doctor, CI lanes) decide
 // severity.
 //
 // The core idea: macOS logs every DELIVERED notification in Notification
@@ -162,7 +162,7 @@ export async function verifyDelivery(marker, { timeoutMs = 30000, pollMs = 1000 
 // a community-reverse-engineered guess, never validated against Apple ground
 // truth (no spike ever confirmed it). So decodeAuthFlags' 'authorized' /
 // 'unauthorized' is a LOW-CONFIDENCE diagnostic hint only: it is not consumed by
-// any CI gate or hard `aan doctor` pass/fail. Delivery is proven by the NC record
+// any CI gate or hard `anotifier doctor` pass/fail. Delivery is proven by the NC record
 // check in verifyDelivery, not by this bit; doctor treats a non-'authorized'
 // state as a soft 'warn' at most.
 //
