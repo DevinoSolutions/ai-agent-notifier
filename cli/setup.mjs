@@ -39,7 +39,7 @@ function generateTopic() {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let suffix = '';
   for (let i = 0; i < 16; i++) suffix += chars[Math.floor(Math.random() * chars.length)];
-  return `ai-agent-notifier-${suffix}`;
+  return `anotifier-${suffix}`;
 }
 
 function resolveNotifyPath() {
@@ -136,7 +136,7 @@ export async function run() {
     rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   }
 
-  log('\n  ai-agent-notifier — cross-platform AI agent notifications\n', 'bold');
+  log('\n  anotifier — cross-platform AI agent notifications\n', 'bold');
 
   // 1. Platform
   const platLabel = PLATFORM === 'win32' ? 'Windows' : PLATFORM === 'darwin' ? 'macOS' : 'Linux';

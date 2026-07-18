@@ -31,7 +31,7 @@ describe('buildErrorEvent', () => {
     assert.equal(event.platform, 'node');
     assert.equal(event.level, 'error');
     assert.equal(event.logger, 'toast:windows');
-    assert.match(event.release, /^ai-agent-notifier@\d+\.\d+\.\d+$/);
+    assert.match(event.release, /^anotifier@\d+\.\d+\.\d+$/);
     assert.deepEqual(event.tags, { context: 'toast:windows' });
     assert.equal(event.exception.values[0].type, 'TestError');
     assert.equal(event.exception.values[0].value, 'kaboom');

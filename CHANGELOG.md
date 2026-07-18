@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `ai-agent-notifier` are documented here. This project
+All notable changes to `anotifier` are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
@@ -9,13 +9,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 **First release published to npm since 1.0.6.** Everything in 1.1.0 and 1.2.0
 below ships to npm users for the first time with this release.
 
+### Renamed
+- The package is now **`anotifier`** (was `ai-agent-notifier`), the CLI command
+  is now **`anotifier`**, the config directory is now **`~/.anotifier`** (was
+  `~/.ai-agent-notifier`), and the project home is **https://anotifier.io**. The
+  repository was renamed to `anotifier-for-claude-codex-cursor`.
+- **Upgrading from `ai-agent-notifier`?** Re-run setup — `npx anotifier@latest
+  setup` — because the command name and config directory changed. Prior config
+  is not auto-migrated; the old `ai-agent-notifier` package is deprecated and
+  points here.
+
 ### Fixed
 - **Linux toasts silently dropped for messages starting with `-`.** `notify-send`
   was invoked positionals-first with no `--` end-of-options guard, so rich
   content beginning with a dash (e.g. an assistant line like `- Fixed the bug`)
   was parsed as an unknown option and the toast never fired. Arguments are now
   options, then `--`, then title/message.
-- **`aan test ntfy` crashed on a scheme-less server value.** An unguarded
+- **`anotifier test ntfy` crashed on a scheme-less server value.** An unguarded
   `new URL()` broke the ntfy sender's resolve-false/never-throw contract; a typo
   like `ntfy.sh` (no `https://`) now degrades cleanly instead of throwing.
 - **Update-check nagged a downgrade.** The version comparison used string
@@ -28,8 +38,8 @@ below ships to npm users for the first time with this release.
 - **Real install one-liners.** `setup/install.sh` and `setup/install.ps1` now
   exist — the README `curl | bash` / `irm | iex` commands previously 404'd and
   silently no-opped. Both preflight Node ≥ 18 + npm, fail loudly, and hand off
-  to `npx ai-agent-notifier@latest setup`.
-- **`aan doctor --deep` verifies delivery on Linux.** Fires the real toast with
+  to `npx anotifier@latest setup`.
+- **`anotifier doctor --deep` verifies delivery on Linux.** Fires the real toast with
   a unique marker and reads it back out of `dunst`'s own history, degrading
   honestly (dispatched-but-unverified) when no reader daemon is present. The
   win32 backend check is now a real probe (PowerShell + BurntToast + execution

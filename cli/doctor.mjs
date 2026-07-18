@@ -1,4 +1,4 @@
-// cli/doctor.mjs — `aan doctor`: per-channel delivery self-check.
+// cli/doctor.mjs — `anotifier doctor`: per-channel delivery self-check.
 // Flags: --deep (send a real marker toast + verify via NC DB on macOS),
 //        --json (machine output for CI), --strict (deep warns become fails;
 //        also enabled by AAN_DOCTOR_STRICT=1).
@@ -22,7 +22,7 @@ export async function run(...args) {
     process.stdout.write(JSON.stringify({ platform: os.platform(), deep, strict, checks: results }, null, 2) + '\n');
   } else {
     console.log();
-    console.log(`  ${c.bold('ai-agent-notifier')} ${c.accent('doctor')}${deep ? c.muted(' --deep') : ''}`);
+    console.log(`  ${c.bold('anotifier')} ${c.accent('doctor')}${deep ? c.muted(' --deep') : ''}`);
     console.log();
     for (const r of results) {
       const line = `  ${ICON[r.status]} ${c.white((r.channel + ':').padEnd(9))} ${r.detail}`;

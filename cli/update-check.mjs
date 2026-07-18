@@ -69,7 +69,7 @@ export function isNewer(a, b) {
 // Never throws.
 export function fetchLatest() {
   return new Promise((resolve) => {
-    const req = https.get('https://registry.npmjs.org/ai-agent-notifier/latest', { timeout: 3000 }, (res) => {
+    const req = https.get('https://registry.npmjs.org/anotifier/latest', { timeout: 3000 }, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {

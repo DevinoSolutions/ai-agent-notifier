@@ -1,7 +1,7 @@
 node_modules/
 assets/icon.png
 *.backup
-.ai-agent-notifier-backup
+.anotifier-backup
 
 # Local secrets — never commit
 .env

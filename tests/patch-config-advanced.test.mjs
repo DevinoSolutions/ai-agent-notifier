@@ -100,7 +100,7 @@ describe('unpatchAll', () => {
         PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo safety' }] }],
       }
     }));
-    patchClaude(claudeDir, '/home/user/.npm/ai-agent-notifier/src/notify.mjs');
+    patchClaude(claudeDir, '/home/user/.npm/anotifier/src/notify.mjs');
     // Verify hooks were added
     let settings = JSON.parse(fs.readFileSync(path.join(claudeDir, 'settings.json'), 'utf8'));
     assert.ok(settings.hooks.Stop.length > 0);
@@ -117,7 +117,7 @@ describe('unpatchAll', () => {
     const { patchCodex, unpatchAll } = await import('../setup/patch-config.mjs');
     const codexDir = path.join(tmpDir, '.codex');
     fs.mkdirSync(codexDir, { recursive: true });
-    patchCodex(codexDir, '/home/user/.npm/ai-agent-notifier/src/notify.mjs');
+    patchCodex(codexDir, '/home/user/.npm/anotifier/src/notify.mjs');
     unpatchAll(tmpDir);
     const hooks = JSON.parse(fs.readFileSync(path.join(codexDir, 'hooks.json'), 'utf8'));
     // Events deleted when empty after removing managed hooks
@@ -147,7 +147,7 @@ describe('corrupt config handling', () => {
     fs.writeFileSync(settingsPath, corrupt);
     // A corrupt real config must NOT be silently overwritten with our hooks.
     assert.throws(
-      () => patchClaude(claudeDir, '/home/user/.npm/ai-agent-notifier/src/notify.mjs'),
+      () => patchClaude(claudeDir, '/home/user/.npm/anotifier/src/notify.mjs'),
       /not valid JSON/,
     );
     // File is byte-for-byte unchanged.
@@ -159,7 +159,7 @@ describe('corrupt config handling', () => {
     const codexDir = path.join(tmpDir, '.codex-empty');
     fs.mkdirSync(codexDir, { recursive: true });
     fs.writeFileSync(path.join(codexDir, 'hooks.json'), '');
-    assert.doesNotThrow(() => patchCodex(codexDir, '/home/user/.npm/ai-agent-notifier/src/notify.mjs'));
+    assert.doesNotThrow(() => patchCodex(codexDir, '/home/user/.npm/anotifier/src/notify.mjs'));
     const result = JSON.parse(fs.readFileSync(path.join(codexDir, 'hooks.json'), 'utf8'));
     assert.ok(result.hooks.Stop);
   });
@@ -172,7 +172,7 @@ describe('corrupt config handling', () => {
       version: 1,
       hooks: { stop: [{ command: 'echo user-hook' }] }
     }));
-    patchCursor(cursorDir, '/home/user/.npm/ai-agent-notifier/src/notify.mjs');
+    patchCursor(cursorDir, '/home/user/.npm/anotifier/src/notify.mjs');
     const result = JSON.parse(fs.readFileSync(path.join(cursorDir, 'hooks.json'), 'utf8'));
     // User hook preserved, our hook added
     assert.equal(result.hooks.stop.length, 2);
@@ -189,7 +189,7 @@ describe('Codex config.toml feature flag', () => {
     const { patchCodex } = await import('../setup/patch-config.mjs');
     const codexDir = path.join(tmpDir, '.codex-no-toml');
     fs.mkdirSync(codexDir, { recursive: true });
-    patchCodex(codexDir, '/home/user/.npm/ai-agent-notifier/src/notify.mjs');
+    patchCodex(codexDir, '/home/user/.npm/anotifier/src/notify.mjs');
     const toml = fs.readFileSync(path.join(codexDir, 'config.toml'), 'utf8');
     assert.ok(toml.includes('[features]'));
     assert.ok(toml.includes('hooks = true'));
@@ -200,7 +200,7 @@ describe('Codex config.toml feature flag', () => {
     const codexDir = path.join(tmpDir, '.codex-deprecated');
     fs.mkdirSync(codexDir, { recursive: true });
     fs.writeFileSync(path.join(codexDir, 'config.toml'), '[features]\ncodex_hooks = true\n');
-    patchCodex(codexDir, '/home/user/.npm/ai-agent-notifier/src/notify.mjs');
+    patchCodex(codexDir, '/home/user/.npm/anotifier/src/notify.mjs');
     const toml = fs.readFileSync(path.join(codexDir, 'config.toml'), 'utf8');
     assert.ok(!toml.includes('codex_hooks'));
     assert.ok(toml.includes('hooks = true'));
@@ -210,8 +210,8 @@ describe('Codex config.toml feature flag', () => {
     const { patchCodex } = await import('../setup/patch-config.mjs');
     const codexDir = path.join(tmpDir, '.codex-rerun');
     fs.mkdirSync(codexDir, { recursive: true });
-    patchCodex(codexDir, '/home/user/.npm/ai-agent-notifier/src/notify.mjs');
-    patchCodex(codexDir, '/home/user/.npm/ai-agent-notifier/src/notify.mjs');
+    patchCodex(codexDir, '/home/user/.npm/anotifier/src/notify.mjs');
+    patchCodex(codexDir, '/home/user/.npm/anotifier/src/notify.mjs');
     const toml = fs.readFileSync(path.join(codexDir, 'config.toml'), 'utf8');
     const matches = toml.match(/hooks = true/g);
     assert.equal(matches.length, 1);
@@ -226,18 +226,18 @@ describe('Windows path normalization', () => {
     const { patchCodex } = await import('../setup/patch-config.mjs');
     const codexDir = path.join(tmpDir, '.codex-winpath');
     fs.mkdirSync(codexDir, { recursive: true });
-    patchCodex(codexDir, 'C:\\Users\\dev\\.npm\\ai-agent-notifier\\src\\notify.mjs');
+    patchCodex(codexDir, 'C:\\Users\\dev\\.npm\\anotifier\\src\\notify.mjs');
     const hooks = JSON.parse(fs.readFileSync(path.join(codexDir, 'hooks.json'), 'utf8'));
     const cmd = hooks.hooks.Stop[0].hooks[0].command;
     assert.ok(!cmd.includes('\\'), `Command should use forward slashes: ${cmd}`);
-    assert.ok(cmd.includes('C:/Users/dev/.npm/ai-agent-notifier'));
+    assert.ok(cmd.includes('C:/Users/dev/.npm/anotifier'));
   });
 
   it('Cursor hooks use forward slashes even with backslash input', async () => {
     const { patchCursor } = await import('../setup/patch-config.mjs');
     const cursorDir = path.join(tmpDir, '.cursor-winpath');
     fs.mkdirSync(cursorDir, { recursive: true });
-    patchCursor(cursorDir, 'C:\\Users\\dev\\ai-agent-notifier\\src\\notify.mjs');
+    patchCursor(cursorDir, 'C:\\Users\\dev\\anotifier\\src\\notify.mjs');
     const hooks = JSON.parse(fs.readFileSync(path.join(cursorDir, 'hooks.json'), 'utf8'));
     const cmd = hooks.hooks.stop[0].command;
     assert.ok(!cmd.includes('\\'), `Command should use forward slashes: ${cmd}`);
@@ -267,7 +267,7 @@ describe('Codex config.toml hooks.state idempotency & repair', () => {
     const { patchCodex } = await import('../setup/patch-config.mjs');
     const codexDir = path.join(tmpDir, '.codex-state-rerun');
     fs.mkdirSync(codexDir, { recursive: true });
-    const notify = '/home/user/.npm/ai-agent-notifier/src/notify.mjs';
+    const notify = '/home/user/.npm/anotifier/src/notify.mjs';
     patchCodex(codexDir, notify);
     patchCodex(codexDir, notify);
     const toml = fs.readFileSync(path.join(codexDir, 'config.toml'), 'utf8');
@@ -284,7 +284,7 @@ describe('Codex config.toml hooks.state idempotency & repair', () => {
     const { patchCodex } = await import('../setup/patch-config.mjs');
     const codexDir = path.join(tmpDir, '.codex-state-repair');
     fs.mkdirSync(codexDir, { recursive: true });
-    const notify = '/home/user/.npm/ai-agent-notifier/src/notify.mjs';
+    const notify = '/home/user/.npm/anotifier/src/notify.mjs';
 
     // A clean install produces three valid managed trust entries; the breakage
     // below only needs the first two (stop, session_start).
@@ -337,7 +337,7 @@ describe('unpatchAll Codex config.toml trust cleanup', () => {
     const home = path.join(tmpDir, 'home-unpatch');
     const codexDir = path.join(home, '.codex');
     fs.mkdirSync(codexDir, { recursive: true });
-    const notify = '/home/user/.npm/ai-agent-notifier/src/notify.mjs';
+    const notify = '/home/user/.npm/anotifier/src/notify.mjs';
     patchCodex(codexDir, notify);
 
     const tomlPath = path.join(codexDir, 'config.toml');

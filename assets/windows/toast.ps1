@@ -21,7 +21,7 @@ if (-not $logo -or -not (Test-Path $logo)) {
   $legacy = Join-Path $PSScriptRoot '..\..\assets\icon.png'
   if (Test-Path $legacy) { $logo = $legacy }
   else {
-    $agentDir = Join-Path $env:USERPROFILE '.ai-agent-notifier'
+    $agentDir = Join-Path $env:USERPROFILE '.anotifier'
     $legacy2 = Join-Path $agentDir 'icon.png'
     if (Test-Path $legacy2) { $logo = $legacy2 }
   }

@@ -99,10 +99,10 @@ describe('patch-config', () => {
     patchClaude(claudeDir, '/path/to/notify.mjs');
     patchClaude(claudeDir, '/path/to/notify.mjs');
     const result = JSON.parse(fs.readFileSync(path.join(claudeDir, 'settings.json'), 'utf8'));
-    // Should have exactly one ai-agent-notifier hook per event, not duplicates
+    // Should have exactly one anotifier hook per event, not duplicates
     const notifHooks = result.hooks.Notification;
     const managedCount = notifHooks.filter(h =>
-      h.hooks?.some(hh => hh.command?.includes('ai-agent-notifier') || hh.command?.includes('notify.mjs'))
+      h.hooks?.some(hh => hh.command?.includes('anotifier') || hh.command?.includes('notify.mjs'))
     ).length;
     assert.equal(managedCount, 1);
   });

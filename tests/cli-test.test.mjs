@@ -1,4 +1,4 @@
-// tests/cli-test.test.mjs — `aan test <channel>` argument validation.
+// tests/cli-test.test.mjs — `anotifier test <channel>` argument validation.
 // The unknown-channel path must fail loudly (exit 1) instead of printing the
 // header and exiting 0, which reads as a silent success.
 import { test } from 'node:test';

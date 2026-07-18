@@ -1,12 +1,12 @@
 {
-  "name": "ai-agent-notifier",
+  "name": "anotifier",
   "version": "1.2.1",
   "description": "Desktop & phone notifications for AI coding agents in VS Code and CLI. Supports Claude Code, Codex, Gemini CLI, and Cursor.",
   "author": {
     "name": "DevinoSolutions",
     "url": "https://github.com/DevinoSolutions"
   },
-  "repository": "https://github.com/DevinoSolutions/ai-agent-notifier",
+  "repository": "https://github.com/DevinoSolutions/anotifier-for-claude-codex-cursor",
   "license": "AGPL-3.0-or-later",
   "keywords": ["notifications", "claude-code", "codex", "gemini-cli", "cursor", "vscode", "ai-agent", "ai-coding", "coding-agent", "toast", "ntfy", "push-notifications", "desktop-notifications", "hooks", "developer-tools", "cross-platform", "cli", "productivity"],
   "commands": [

@@ -36,7 +36,7 @@ function writeTranscript(home) {
 
 function mkHome(ntfyConfig) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-rich-'));
-  const cfgDir = path.join(home, '.ai-agent-notifier');
+  const cfgDir = path.join(home, '.anotifier');
   fs.mkdirSync(cfgDir, { recursive: true });
   // Only ntfy is live; toast and bell are off so the run is deterministic.
   fs.writeFileSync(path.join(cfgDir, 'config.json'), JSON.stringify({

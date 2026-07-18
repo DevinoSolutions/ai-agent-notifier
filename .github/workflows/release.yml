@@ -7,10 +7,10 @@ name: Release
 #
 # Auth is TOKENLESS via npm Trusted Publishing (OIDC) — there is NO long-lived
 # NPM_TOKEN secret to store, rotate, or leak. The maintainer configures a
-# Trusted Publisher once at npmjs.com → the ai-agent-notifier package → Settings
+# Trusted Publisher once at npmjs.com → the anotifier package → Settings
 # → Trusted Publisher → GitHub Actions, with:
 #   Organization/user: DevinoSolutions
-#   Repository:        ai-agent-notifier
+#   Repository:        anotifier-for-claude-codex-cursor
 #   Workflow filename: release.yml
 # npm then trusts a short-lived OIDC token minted by THIS workflow (id-token:
 # write) and no other. Provenance attestations are generated automatically.

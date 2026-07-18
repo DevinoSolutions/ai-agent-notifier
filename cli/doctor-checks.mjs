@@ -1,4 +1,4 @@
-// cli/doctor-checks.mjs — pure diagnostic logic for `aan doctor`. No console I/O;
+// cli/doctor-checks.mjs — pure diagnostic logic for `anotifier doctor`. No console I/O;
 // returns an array of { id, channel, status, detail, hint }. Each check is
 // best-effort and never throws; runChecks aggregates them.
 import os from 'node:os';
@@ -63,7 +63,7 @@ export function windowsToastBackendCheck({ hasBin = has, psRun = defaultPsRun } 
     return {
       id: 'toast-backend', channel: 'toast', status: 'warn',
       detail: `${shell} present but backend probe failed: ${err.message}`,
-      hint: 'run `ai-agent-notifier test toast` to see the real error',
+      hint: 'run `anotifier test toast` to see the real error',
     };
   }
 
@@ -79,7 +79,7 @@ export function windowsToastBackendCheck({ hasBin = has, psRun = defaultPsRun } 
     return {
       id: 'toast-backend', channel: 'toast', status: 'warn',
       detail: `${shell} present, BurntToast module not installed`,
-      hint: 'Install-Module BurntToast -Scope CurrentUser  (or run: ai-agent-notifier setup)',
+      hint: 'Install-Module BurntToast -Scope CurrentUser  (or run: anotifier setup)',
     };
   }
   return { id: 'toast-backend', channel: 'toast', status: 'ok', detail: `${shell} + BurntToast present` };
@@ -113,7 +113,7 @@ function ntfyCheck(config) {
   const ok = config?.ntfy?.enabled && config?.ntfy?.topic;
   return ok
     ? { id: 'ntfy-config', channel: 'ntfy', status: 'ok', detail: `${config.ntfy.server || 'https://ntfy.sh'}/${config.ntfy.topic}` }
-    : { id: 'ntfy-config', channel: 'ntfy', status: 'warn', detail: 'ntfy not configured', hint: 'run: ai-agent-notifier setup' };
+    : { id: 'ntfy-config', channel: 'ntfy', status: 'warn', detail: 'ntfy not configured', hint: 'run: anotifier setup' };
 }
 
 function webhookCheck(config) {
@@ -122,12 +122,12 @@ function webhookCheck(config) {
     const u = new URL(config.webhook.url);
     return { id: 'webhook-config', channel: 'webhook', status: 'ok', detail: u.origin };
   } catch {
-    return { id: 'webhook-config', channel: 'webhook', status: 'fail', detail: 'webhook enabled but URL invalid', hint: 'run: ai-agent-notifier config webhook' };
+    return { id: 'webhook-config', channel: 'webhook', status: 'fail', detail: 'webhook enabled but URL invalid', hint: 'run: anotifier config webhook' };
   }
 }
 
 function configCheck(config, configProblem) {
-  if (configProblem) return { id: 'config', channel: 'config', status: 'fail', detail: configProblem.message, hint: 'fix ~/.ai-agent-notifier/config.json' };
+  if (configProblem) return { id: 'config', channel: 'config', status: 'fail', detail: configProblem.message, hint: 'fix ~/.anotifier/config.json' };
   if (!config || typeof config !== 'object') return { id: 'config', channel: 'config', status: 'fail', detail: 'config did not load' };
   return { id: 'config', channel: 'config', status: 'ok', detail: 'config valid' };
 }
@@ -145,7 +145,7 @@ async function toastAuthCheck(deep, strict) {
   // --deep: fire a real marker toast through the production backend and verify.
   const { sendToast } = await import('../src/platforms/macos.mjs');
   const marker = `aan-doctor-${process.pid}-${Date.now().toString(36)}`;
-  await sendToast({ title: 'ai-agent-notifier', message: `doctor check ${marker}`, toastSound: 'Default' });
+  await sendToast({ title: 'anotifier', message: `doctor check ${marker}`, toastSound: 'Default' });
   const res = await verifyDelivery(marker, { timeoutMs: 15000, pollMs: 1000 });
   if (res.delivered) return { id: 'toast-auth', channel: 'toast', status: 'ok', detail: `delivered + verified in Notification Center (${res.record.app || 'osascript'})` };
   if (res.reason === 'tcc-blocked') {
@@ -209,7 +209,7 @@ export async function linuxDeepToastCheck({
   const marker = `aan-doctor-${process.pid}-${Date.now().toString(36)}`;
   const notification = {
     source: 'claude',
-    title: 'ai-agent-notifier doctor check',
+    title: 'anotifier doctor check',
     message: `test notification ${marker}`,
     priority: 'low', // visible to the user — keep it low-urgency
   };
@@ -236,7 +236,7 @@ export async function linuxDeepToastCheck({
     return {
       id: 'toast-deep', channel: 'toast', status: 'warn',
       detail: 'dunstctl present but its history could not be read (daemon not running on this session bus?)',
-      hint: 'start the dunst daemon, then re-run `ai-agent-notifier doctor --deep`',
+      hint: 'start the dunst daemon, then re-run `anotifier doctor --deep`',
     };
   }
   return {

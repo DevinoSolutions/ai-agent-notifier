@@ -26,7 +26,7 @@ export async function run(channel) {
   }
 
   const testNotif = {
-    title: 'ai-agent-notifier',
+    title: 'anotifier',
     message: 'Test notification — if you see this, it works!',
     toastSound: 'Default',
     priority: 'default',
@@ -35,7 +35,7 @@ export async function run(channel) {
   };
 
   console.log();
-  console.log(`  ${c.bold('ai-agent-notifier')} ${c.accent('test')}`);
+  console.log(`  ${c.bold('anotifier')} ${c.accent('test')}`);
   console.log();
 
   const doToast = !channel || channel === 'toast' || channel === 'both';
@@ -65,7 +65,7 @@ export async function run(channel) {
       if (ok) spin.stop('ntfy sent');
       else { spin.fail('ntfy failed'); failed = true; }
     } else {
-      console.log(`  ${c.warn('⚠')} ${c.muted('ntfy not configured — run')} ${c.white('ai-agent-notifier setup')} ${c.muted('first')}`);
+      console.log(`  ${c.warn('⚠')} ${c.muted('ntfy not configured — run')} ${c.white('anotifier setup')} ${c.muted('first')}`);
     }
   }
 
@@ -76,7 +76,7 @@ export async function run(channel) {
       if (ok) spin.stop('Webhook sent');
       else { spin.fail('Webhook failed'); failed = true; }
     } else {
-      console.log(`  ${c.warn('⚠')} ${c.muted('webhook not configured — run')} ${c.white('ai-agent-notifier config')} ${c.muted('first')}`);
+      console.log(`  ${c.warn('⚠')} ${c.muted('webhook not configured — run')} ${c.white('anotifier config')} ${c.muted('first')}`);
     }
   }
 

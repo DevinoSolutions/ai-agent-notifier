@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
 
-const MANAGED_TAG = 'ai-agent-notifier';
+const MANAGED_TAG = 'anotifier';
 
 // Single source of truth for which hook events each tool's patcher writes.
 // unpatchAll cleans EXACTLY these events, so patch and unpatch can never diverge
@@ -77,7 +77,7 @@ function makeHookEntry(notifyPath, source, { tag = true, timeout = 10, statusMes
 
 function isOurHook(command) {
   return command?.includes('notify.mjs') &&
-    (command.includes('ai-agent-notifier') || command.includes('agent-notify'));
+    (command.includes('anotifier') || command.includes('agent-notify'));
 }
 
 // The ONE predicate that decides whether a hook-array entry is ours. Covers all
@@ -95,7 +95,7 @@ export function isManagedHookEntry(entry) {
 }
 
 // Event names in a tool's hooks object that contain at least one managed entry.
-// This is the single detection used by `ai-agent-notifier status`.
+// This is the single detection used by `anotifier status`.
 export function detectManagedEvents(hooksObject) {
   if (!hooksObject || typeof hooksObject !== 'object') return [];
   return Object.keys(hooksObject).filter((event) =>

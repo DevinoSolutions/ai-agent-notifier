@@ -21,7 +21,7 @@ const ALL_DISABLED = { toast: { enabled: false }, ntfy: { enabled: false }, term
 
 function runNotify(input, source = 'claude', extraArgs = [], config = ALL_DISABLED) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-sub-'));
-  const cfgDir = path.join(home, '.ai-agent-notifier');
+  const cfgDir = path.join(home, '.anotifier');
   fs.mkdirSync(cfgDir, { recursive: true });
   fs.writeFileSync(path.join(cfgDir, 'config.json'), JSON.stringify(config));
   const env = { ...process.env, HOME: home, USERPROFILE: home };
@@ -62,7 +62,7 @@ describe('notify.mjs subprocess robustness (a hook must never crash)', () => {
       env, encoding: 'utf8', timeout: 30000,
     });
     assert.equal(res.status, 0, res.stderr);
-    const log = fs.readFileSync(path.join(home, '.ai-agent-notifier', 'errors.log'), 'utf8');
+    const log = fs.readFileSync(path.join(home, '.anotifier', 'errors.log'), 'utf8');
     assert.match(log, /"context":"router"/);
     assert.match(log, /PreToolUse/);
     fs.rmSync(home, { recursive: true, force: true });
@@ -84,7 +84,7 @@ describe('notify.mjs subprocess robustness (a hook must never crash)', () => {
     // Unlike runNotify (which seeds a valid config and deletes the home), this test
     // keeps its own home so it can read back the JSONL error log afterward.
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-badcfg-'));
-    const cfgDir = path.join(home, '.ai-agent-notifier');
+    const cfgDir = path.join(home, '.anotifier');
     fs.mkdirSync(cfgDir, { recursive: true });
     // Deliberately invalid JSON: the loader must fall back to defaults, keep the
     // hook alive (exit 0 + valid JSON), and record the parse failure to errors.log.
@@ -137,7 +137,7 @@ describe('notify.mjs claude terminalSequence bell (F1)', () => {
     // Both invocations must share one HOME so the second collides with the
     // first's dedup lock — runNotify makes a fresh HOME per call, so spawn here.
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'aan-notify-dedup-'));
-    const cfgDir = path.join(home, '.ai-agent-notifier');
+    const cfgDir = path.join(home, '.anotifier');
     fs.mkdirSync(cfgDir, { recursive: true });
     fs.writeFileSync(
       path.join(cfgDir, 'config.json'),

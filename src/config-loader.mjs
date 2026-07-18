@@ -23,7 +23,7 @@ function deepMerge(a, b) {
 }
 
 export function getConfigDir() {
-  return path.join(os.homedir(), '.ai-agent-notifier');
+  return path.join(os.homedir(), '.anotifier');
 }
 
 export function getConfigPath() {
