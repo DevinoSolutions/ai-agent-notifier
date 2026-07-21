@@ -4,6 +4,19 @@ All notable changes to `anotifier` are documented here. This project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format.
 
+## [1.2.2] — 2026-07-20
+
+Release-infrastructure only — **no functional or behavioral changes from 1.2.1**;
+the package contents are identical.
+
+### Changed
+- **First release published via tokenless CI with provenance.** 1.2.1 was
+  published manually to bootstrap the new `anotifier` package name — npm requires
+  a package to exist before a Trusted Publisher can be configured — so it carries
+  no build provenance. 1.2.2 is the first release cut through GitHub Actions using
+  npm Trusted Publishing (OIDC), so the published artifact now ships with a
+  verifiable provenance attestation, and no npm token is involved at any point.
+
 ## [1.2.1] — 2026-07-16
 
 **First release published to npm since 1.0.6.** Everything in 1.1.0 and 1.2.0
